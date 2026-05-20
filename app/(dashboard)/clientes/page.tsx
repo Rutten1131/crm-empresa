@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Search, ShieldAlert, MessageSquare, ExternalLink, Calendar, Users } from "lucide-react";
-import { Cliente, Seguimiento, EstadoCliente, EstadoSeguimiento } from "@prisma/client";
+import type { Cliente, Seguimiento } from "@prisma/client";
+import { EstadoCliente, EstadoSeguimiento } from "./enums";
 import ClientePanel from "@/components/ClientePanel";
 
 type ClienteWithSeguimientos = Cliente & {
@@ -46,7 +47,7 @@ export default function ClientesPage() {
   // Encontrar el siguiente seguimiento pendiente
   const getProximoSeguimiento = (cliente: ClienteWithSeguimientos) => {
     const pendientes = cliente.seguimientos.filter(
-      (s) => s.estado === EstadoSeguimiento.PENDIENTE
+      (s) => (s.estado as unknown as string) === EstadoSeguimiento.PENDIENTE
     );
     if (pendientes.length === 0) return null;
     return pendientes[0]; // Ya ordenados por fechaProg asc en la API
@@ -66,18 +67,20 @@ export default function ClientesPage() {
   };
 
   // Helper para traducir estados
-  const getEstadoBadge = (estado: EstadoCliente) => {
-    switch (estado) {
-      case EstadoCliente.PENDIENTE:
-        return { text: "Nuevo", style: "bg-blue-500/10 text-blue-400 border-blue-500/20" };
-      case EstadoCliente.ENVIADO:
-        return { text: "Seguimiento", style: "bg-amber-500/10 text-amber-400 border-amber-500/20" };
-      case EstadoCliente.PAGADO:
-        return { text: "Convertido", style: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" };
-      case EstadoCliente.CERRADO:
-        return { text: "Cerrado", style: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" };
-    }
-  };
+  const getEstadoBadge = (estado: string) => {
+  switch (estado) {
+    case EstadoCliente.PENDIENTE:
+      return { text: "Nuevo", style: "bg-blue-500/10 text-blue-400 border-blue-500/20" };
+    case EstadoCliente.ENVIADO:
+      return { text: "Seguimiento", style: "bg-amber-500/10 text-amber-400 border-amber-500/20" };
+    case EstadoCliente.PAGADO:
+      return { text: "Convertido", style: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" };
+    case EstadoCliente.CERRADO:
+      return { text: "Cerrado", style: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" };
+    default:
+      return { text: "Desconocido", style: "bg-gray-500/10 text-gray-400 border-gray-500/20" };
+  }
+};;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
