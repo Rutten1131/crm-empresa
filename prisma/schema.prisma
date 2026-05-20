@@ -1,0 +1,95 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String   // bcrypt hash
+  createdAt DateTime @default(now())
+}
+
+
+
+model Cliente {
+  id              String          @id @default(cuid())
+  nombre          String
+  nombre_negocio   String?   // nombre del negocio
+
+  email           String?
+  estado          EstadoCliente   @default(PENDIENTE)
+  fuenteExterna   String?         // ID del cliente en el proyecto externo
+  cuentaPrueba    Boolean         @default(true)
+  fechaIngreso    DateTime        @default(now())
+  seguimientos    Seguimiento[]
+  updatedAt       DateTime        @updatedAt
+}
+
+enum EstadoCliente {
+  PENDIENTE
+  ENVIADO
+  PAGADO
+  CERRADO
+}
+
+model Seguimiento {
+  id          String            @id @default(cuid())
+  clienteId   String
+  cliente     Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  dia         Int               // 3, 7 o 15
+  estado      EstadoSeguimiento @default(PENDIENTE)
+  fechaProg   DateTime          // fecha en que debe enviarse
+  fechaEnvio  DateTime?         // fecha real de envío
+  mensaje     String?           // mensaje enviado
+  createdAt   DateTime          @default(now())
+}
+
+enum EstadoSeguimiento {
+  PENDIENTE
+  ENVIADO
+  OMITIDO   // cliente ya pagó/cerrado antes de este hito
+}
+
+model Transaccion {
+  id          String              @id @default(cuid())
+  tipo        TipoTransaccion
+  monto       Decimal             @db.Decimal(10,2)
+  descripcion String
+  categoria   String
+  fecha       DateTime            @default(now())
+  creadoPor   String              // userId
+  createdAt   DateTime            @default(now())
+}
+
+enum TipoTransaccion {
+  INGRESO
+  GASTO
+}
+
+model Aviso {
+  id          String        @id @default(cuid())
+  titulo      String
+  mensaje     String
+  telefono    String        // número destino WhatsApp
+  fechaProg   DateTime
+  estado      EstadoAviso   @default(PENDIENTE)
+  creadoPor   String        // userId
+  createdAt   DateTime      @default(now())
+}
+
+enum EstadoAviso {
+  PENDIENTE
+  ENVIADO
+  FALLIDO
+}
+
+model Configuracion {
+  key   String @id
+  value String @db.Text
+}
