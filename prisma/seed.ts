@@ -15,12 +15,12 @@ async function main() {
   const cesar = await prisma.user.upsert({
     where: { email: cesarEmail },
     update: {
-      name: "Cesar",
+      nombre: "Cesar",
       password: hashedPassword,
       role: "ADMIN",
     },
     create: {
-      name: "Cesar",
+      nombre: "Cesar",
       email: cesarEmail,
       password: hashedPassword,
       role: "ADMIN",
@@ -33,12 +33,12 @@ async function main() {
   const cristhopher = await prisma.user.upsert({
     where: { email: cristhopherEmail },
     update: {
-      name: "Cristhopher",
+      nombre: "Cristhopher",
       password: hashedPassword,
       role: "ADMIN",
     },
     create: {
-      name: "Cristhopher",
+      nombre: "Cristhopher",
       email: cristhopherEmail,
       password: hashedPassword,
       role: "ADMIN",

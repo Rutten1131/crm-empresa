@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Send, Clock, Trash2, Calendar, Phone, Bell, Loader2 } from "lucide-react";
-import { EstadoAviso } from "@prisma/client";
+import { EstadoAviso } from "@/lib/estadoAviso";
 
 export default function AvisosPage() {
   const [avisos, setAvisos] = useState<any[]>([]);

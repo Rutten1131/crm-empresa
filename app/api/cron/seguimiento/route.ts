@@ -75,6 +75,12 @@ async function handleCron(request: NextRequest) {
       }
 
       const mensajePersonalizado = plantilla.replace(/{nombre}/g, cliente.nombre);
+
+      if (!cliente.telefono) {
+        // Skip if no phone number
+        continue;
+      }
+
       const enviado = await sendTextMessage(cliente.telefono, mensajePersonalizado);
 
       if (enviado) {

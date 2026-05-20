@@ -9,8 +9,10 @@ datasource db {
 
 model User {
   id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
+  nombre    String?   // user full name
+  email     String?   @unique   // user email address
+  telefono   String?
+  role        String?   // user role (ADMIN, USER)
   password  String   // bcrypt hash
   createdAt DateTime @default(now())
 }
@@ -20,6 +22,8 @@ model User {
 model Cliente {
   id              String          @id @default(cuid())
   nombre          String
+  telefono        String?         // número de teléfono del cliente
+  whatsapp        String?   // WhatsApp number
   nombre_negocio   String?   // nombre del negocio
 
   email           String?

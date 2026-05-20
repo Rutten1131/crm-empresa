@@ -109,9 +109,13 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
             <div className="space-y-3 bg-zinc-950 border border-zinc-850 p-4 rounded-2xl">
               <div className="flex items-center gap-3 text-sm text-zinc-300">
                 <Phone size={16} className="text-zinc-500" />
-                <a href={`https://wa.me/${cliente.telefono.replace('+', '')}`} target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 hover:underline font-mono">
-                  {cliente.telefono}
-                </a>
+                {cliente.telefono ? (
+                  <a href={`https://wa.me/${cliente.telefono.replace('+', '')}`} target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 hover:underline font-mono">
+                    {cliente.telefono}
+                  </a>
+                ) : (
+                  <span className="text-zinc-500">Sin teléfono</span>
+                )}
               </div>
               {cliente.email && (
                 <div className="flex items-center gap-3 text-sm text-zinc-300">

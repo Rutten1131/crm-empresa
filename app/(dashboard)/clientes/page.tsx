@@ -215,7 +215,7 @@ export default function ClientesPage() {
                       {/* Teléfono */}
                       <td className="py-4 px-6">
                         <a
-                          href={`https://wa.me/${c.telefono.replace('+', '')}`}
+                          href={c.telefono ? `https://wa.me/${c.telefono.replace('+', '')}` : '#'}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-emerald-400 transition-colors font-mono"

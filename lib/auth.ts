@@ -11,12 +11,12 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Contraseña", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Credenciales incompletas");
         }
 
-        const user = await prisma.user.findUnique({
+        const user = await prisma.user.findFirst({
           where: {
             email: credentials.email.toLowerCase().trim(),
           },
@@ -32,11 +32,12 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Contraseña incorrecta");
         }
 
+        // Return object compatible with NextAuth User type
         return {
           id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
+          name: user.nombre ?? "",
+          email: user.email ?? "",
+          role: user.role ?? "",
         };
       }
     })
@@ -44,17 +45,17 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
-        token.name = user.name;
-      }
+      token.id = user.id;
+      token.role = (user as any).role ?? "";
+      token.nombre = (user as any).name ?? "";
+    }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
-        (session.user as any).name = token.name;
+        (session.user as any).nombre = token.nombre;
       }
       return session;
     }

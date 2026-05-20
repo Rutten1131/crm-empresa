@@ -48,14 +48,8 @@ export async function POST(request: NextRequest) {
           nombre_negocio: c.nombre_negocio ?? "",
           email: c.email ?? "",
           whatsapp: c.whatsapp ?? "",
-          status: c.status as any,
-          plan: c.plan as any,
-          fecha_pendiente: c.fecha_pendiente ? new Date(c.fecha_pendiente) : undefined,
-          activated_at: c.fecha_activacion ? new Date(c.fecha_activacion) : null,
-          expires_at: c.fecha_expiracion ? new Date(c.fecha_expiracion) : null,
-          seller_id: c.seller_id ?? null,
-          vendedor_nombre: c.vendedor_nombre ?? "",
-          vendedor_codigo: c.vendedor_codigo ?? "",
+          telefono: c.telefono ?? "",
+          // optional fields can be added here if schema updated later
         },
         create: {
           id: c.id,
@@ -63,14 +57,8 @@ export async function POST(request: NextRequest) {
           nombre_negocio: c.nombre_negocio ?? "",
           email: c.email ?? "",
           whatsapp: c.whatsapp ?? "",
-          status: c.status as any,
-          plan: c.plan as any,
-          fecha_pendiente: c.fecha_pendiente ? new Date(c.fecha_pendiente) : undefined,
-          activated_at: c.fecha_activacion ? new Date(c.fecha_activacion) : null,
-          expires_at: c.fecha_expiracion ? new Date(c.fecha_expiracion) : null,
-          seller_id: c.seller_id ?? null,
-          vendedor_nombre: c.vendedor_nombre ?? "",
-          vendedor_codigo: c.vendedor_codigo ?? "",
+          telefono: c.telefono ?? "",
+          // optional fields can be added here if schema updated later
         },
       })
     );
