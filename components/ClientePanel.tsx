@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { X, Calendar, MessageSquare, ShieldAlert, CheckCircle2, User, Phone, Mail, Clock } from "lucide-react";
-import { Cliente, Seguimiento, EstadoCliente, EstadoSeguimiento } from "@prisma/client";
+import type { Cliente, Seguimiento } from "@prisma/client";
+import { EstadoClienteEnum, EstadoSeguimientoEnum } from "./enums";
 
 interface ClientePanelProps {
   cliente: Cliente | null;
@@ -38,7 +39,7 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
 
   if (!cliente) return null;
 
-  const handleStatusChange = async (nuevoEstado: EstadoCliente) => {
+  const handleStatusChange = async (nuevoEstado: EstadoClienteEnum) => {
     try {
       setUpdatingStatus(true);
       const response = await fetch(`/api/clientes/${cliente.id}`, {
@@ -63,20 +64,20 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
   };
 
   // Helper para traducir estados del cliente
-  const getEstadoBadge = (estado: EstadoCliente) => {
+  const getEstadoBadge = (estado: EstadoClienteEnum) => {
     switch (estado) {
-      case EstadoCliente.PENDIENTE:
+      case EstadoClienteEnum.PENDIENTE:
         return { text: "Nuevo", style: "bg-blue-500/10 text-blue-400 border-blue-500/20" };
-      case EstadoCliente.ENVIADO:
+      case EstadoClienteEnum.ENVIADO:
         return { text: "Seguimiento", style: "bg-amber-500/10 text-amber-400 border-amber-500/20" };
-      case EstadoCliente.PAGADO:
+      case EstadoClienteEnum.PAGADO:
         return { text: "Convertido", style: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" };
-      case EstadoCliente.CERRADO:
+      case EstadoClienteEnum.CERRADO:
         return { text: "Cerrado", style: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20" };
     }
   };
 
-  const badge = getEstadoBadge(cliente.estado);
+  const badge = getEstadoBadge(cliente.estado as EstadoClienteEnum);
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -141,7 +142,7 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Actualizar Estado Manual</h3>
             <div className="grid grid-cols-2 gap-2">
-              {(Object.keys(EstadoCliente) as EstadoCliente[]).map((est) => {
+              {(Object.values(EstadoClienteEnum) as EstadoClienteEnum[]).map((est) => {
                 const badgeInfo = getEstadoBadge(est);
                 const activo = cliente.estado === est;
                 return (
@@ -181,10 +182,10 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
                   let statusColor = "bg-zinc-800 text-zinc-500 border-zinc-850";
                   let statusText = "Pendiente";
 
-                  if (seg.estado === EstadoSeguimiento.ENVIADO) {
+                  if (seg.estado === EstadoSeguimientoEnum.ENVIADO) {
                     statusColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
                     statusText = "Enviado";
-                  } else if (seg.estado === EstadoSeguimiento.OMITIDO) {
+                  } else if (seg.estado === EstadoSeguimientoEnum.OMITIDO) {
                     statusColor = "bg-zinc-900 text-zinc-600 border-zinc-850 line-through";
                     statusText = "Omitido";
                   }

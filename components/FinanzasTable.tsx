@@ -1,7 +1,8 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { TipoTransaccion, Transaccion } from "@prisma/client";
+import type { Transaccion } from "@prisma/client";
+import { TipoTransaccionEnum } from "./enums";
 
 interface FinanzasTableProps {
   transacciones: (Omit<Transaccion, "monto"> & { monto: number })[];
@@ -92,8 +93,8 @@ export default function FinanzasTable({
               className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 rounded-xl text-xs text-zinc-200 outline-none transition-colors appearance-none cursor-pointer"
             >
               <option value="">Todos</option>
-              <option value={TipoTransaccion.INGRESO}>Ingresos</option>
-              <option value={TipoTransaccion.GASTO}>Gastos</option>
+              <option value={TipoTransaccionEnum.INGRESO}>Ingresos</option>
+              <option value={TipoTransaccionEnum.GASTO}>Gastos</option>
             </select>
           </div>
 
@@ -190,7 +191,7 @@ export default function FinanzasTable({
                 </tr>
               ) : (
                 transacciones.map((t) => {
-                  const esIngreso = t.tipo === TipoTransaccion.INGRESO;
+                  const esIngreso = t.tipo === TipoTransaccionEnum.INGRESO;
                   const fechaFormateada = new Date(t.fecha).toLocaleDateString("es-MX", {
                     day: "2-digit",
                     month: "short",

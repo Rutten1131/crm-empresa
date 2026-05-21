@@ -11,7 +11,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { TipoTransaccion, Transaccion } from "@prisma/client";
+import type { Transaccion } from "@prisma/client";
+import { TipoTransaccionEnum } from "./enums";
 
 interface FinanzasChartProps {
   transacciones: (Omit<Transaccion, "monto"> & { monto: number })[];
@@ -55,9 +56,9 @@ export default function FinanzasChart({ transacciones }: FinanzasChartProps) {
       const dia = fechaT.getDate();
       if (datosPorDia[dia]) {
         const monto = Number(t.monto);
-        if (t.tipo === TipoTransaccion.INGRESO) {
+        if (t.tipo === TipoTransaccionEnum.INGRESO) {
           datosPorDia[dia].Ingresos += monto;
-        } else if (t.tipo === TipoTransaccion.GASTO) {
+        } else if (t.tipo === TipoTransaccionEnum.GASTO) {
           datosPorDia[dia].Gastos += monto;
         }
       }

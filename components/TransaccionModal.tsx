@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
-import { TipoTransaccion } from "@prisma/client";
+// Import type only to avoid runtime Prisma client import
+import type { TipoTransaccion } from "@prisma/client";
+
+// Local enum mirroring Prisma enum for client-side usage
+export const TipoTransaccionEnum = {
+  INGRESO: "INGRESO" as const,
+  GASTO: "GASTO" as const,
+};
+
 
 interface TransaccionModalProps {
   isOpen: boolean;
@@ -14,7 +22,7 @@ const CATEGORIAS_INGRESO = ["Ventas", "Suscripciones", "Consultoría", "Servicio
 const CATEGORIAS_GASTO = ["Marketing", "Herramientas/Software", "Sueldos", "Servicios Básicos", "Infraestructura", "Impuestos", "Otros"];
 
 export default function TransaccionModal({ isOpen, onClose, onSuccess }: TransaccionModalProps) {
-  const [tipo, setTipo] = useState<TipoTransaccion>(TipoTransaccion.INGRESO);
+  const [tipo, setTipo] = useState<keyof typeof TipoTransaccionEnum>("INGRESO");
   const [monto, setMonto] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [categoria, setCategoria] = useState(CATEGORIAS_INGRESO[0]);
@@ -24,10 +32,10 @@ export default function TransaccionModal({ isOpen, onClose, onSuccess }: Transac
 
   if (!isOpen) return null;
 
-  const handleTipoChange = (nuevoTipo: TipoTransaccion) => {
+  const handleTipoChange = (nuevoTipo: keyof typeof TipoTransaccionEnum) => {
     setTipo(nuevoTipo);
     // Cambiar categoría por defecto según el tipo
-    if (nuevoTipo === TipoTransaccion.INGRESO) {
+    if (nuevoTipo === "INGRESO") {
       setCategoria(CATEGORIAS_INGRESO[0]);
     } else {
       setCategoria(CATEGORIAS_GASTO[0]);
@@ -73,7 +81,7 @@ export default function TransaccionModal({ isOpen, onClose, onSuccess }: Transac
     }
   };
 
-  const categorias = tipo === TipoTransaccion.INGRESO ? CATEGORIAS_INGRESO : CATEGORIAS_GASTO;
+  const categorias = tipo === TipoTransaccionEnum.INGRESO ? CATEGORIAS_INGRESO : CATEGORIAS_GASTO;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
@@ -105,9 +113,9 @@ export default function TransaccionModal({ isOpen, onClose, onSuccess }: Transac
             <div className="grid grid-cols-2 gap-2 p-1 bg-zinc-950 border border-zinc-800/60 rounded-2xl">
               <button
                 type="button"
-                onClick={() => handleTipoChange(TipoTransaccion.INGRESO)}
+                onClick={() => handleTipoChange("INGRESO")}
                 className={`py-2 text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer ${
-                  tipo === TipoTransaccion.INGRESO
+                  tipo === TipoTransaccionEnum.INGRESO
                     ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm"
                     : "text-zinc-500 hover:text-zinc-300 border border-transparent"
                 }`}
@@ -116,9 +124,9 @@ export default function TransaccionModal({ isOpen, onClose, onSuccess }: Transac
               </button>
               <button
                 type="button"
-                onClick={() => handleTipoChange(TipoTransaccion.GASTO)}
+                onClick={() => handleTipoChange("GASTO")}
                 className={`py-2 text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer ${
-                  tipo === TipoTransaccion.GASTO
+                  tipo === TipoTransaccionEnum.GASTO
                     ? "bg-red-500/10 text-red-400 border border-red-500/20 shadow-sm"
                     : "text-zinc-500 hover:text-zinc-300 border border-transparent"
                 }`}
