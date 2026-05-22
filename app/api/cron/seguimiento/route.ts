@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { EstadoCliente, EstadoSeguimiento, EstadoAviso } from "@prisma/client";
-import { sendTextMessage } from "@/lib/evolution";
+import { enviarWhatsApp } from "@/lib/evolution";
 
 // Habilitar tanto GET como POST para que se pueda testear o invocar con facilidad
 export async function POST(request: NextRequest) {
@@ -81,7 +81,8 @@ async function handleCron(request: NextRequest) {
         continue;
       }
 
-      const enviado = await sendTextMessage(cliente.telefono, mensajePersonalizado);
+      const resWhatsApp = await enviarWhatsApp(cliente.telefono, mensajePersonalizado);
+      const enviado = resWhatsApp.success;
 
       if (enviado) {
         await prisma.seguimiento.update({
@@ -127,7 +128,8 @@ async function handleCron(request: NextRequest) {
     let avisosFallidos = 0;
 
     for (const aviso of avisosPendientes) {
-      const enviado = await sendTextMessage(aviso.telefono, aviso.mensaje);
+      const resWhatsApp = await enviarWhatsApp(aviso.telefono, aviso.mensaje);
+      const enviado = resWhatsApp.success;
 
       if (enviado) {
         await prisma.aviso.update({

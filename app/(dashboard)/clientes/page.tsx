@@ -28,8 +28,10 @@ export default function ClientesPage() {
       if (!response.ok) throw new Error("Error al obtener clientes");
       const data = await response.json();
       setClientes(data);
+      return data as ClienteWithSeguimientos[];
     } catch (error) {
       console.error(error);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -283,19 +285,11 @@ export default function ClientesPage() {
       <ClientePanel
         cliente={selectedCliente}
         onClose={() => setSelectedCliente(null)}
-        onStatusChangeSuccess={() => {
-          fetchClientes();
-          // Actualizar el cliente seleccionado con su nuevo estado localmente si se desea
-          if (selectedCliente) {
-            setSelectedCliente((prev) => (prev ? { ...prev, estado: selectedCliente.estado } : null));
-            // O simplemente forzar la recarga
-            fetchClientes().then(() => {
-              // Re-buscar el cliente en la lista para que se actualice el panel
-              const index = clientes.findIndex((c) => c.id === selectedCliente.id);
-              if (index !== -1) {
-                // Se actualizará el panel al volver a hacer fetch
-              }
-            });
+        onStatusChangeSuccess={async (updatedCliente) => {
+          const updatedClientes = await fetchClientes();
+          if (updatedCliente) {
+            const foundInList = updatedClientes?.find((c) => c.id === updatedCliente.id);
+            setSelectedCliente(foundInList || updatedCliente);
           }
         }}
       />
