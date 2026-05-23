@@ -49,6 +49,21 @@ export async function POST(request: NextRequest) {
     // Normalizar el teléfono (mantener solo números y +)
     const telefonoNormalizado = telefono.replace(/[^\d+]/g, "");
 
+    // Verificar conflictos de horarios (dentro de 1 hora antes o después)
+    const nuevaFecha = new Date(fechaProg);
+    const horaInicio = new Date(nuevaFecha.getTime() - 60 * 60 * 1000); // 1 hora antes
+    const horaFin = new Date(nuevaFecha.getTime() + 60 * 60 * 1000); // 1 hora después
+
+    const conflictos = await prisma.aviso.findMany({
+      where: {
+        fechaProg: {
+          gte: horaInicio,
+          lte: horaFin,
+        },
+        estado: EstadoAviso.PENDIENTE,
+      },
+    });
+
     const nuevoAviso = await prisma.aviso.create({
       data: {
         titulo,
@@ -60,7 +75,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(nuevoAviso, { status: 201 });
+    // Si hay conflictos, incluirlos en la respuesta
+    return NextResponse.json({
+      ...nuevoAviso,
+      conflictos: conflictos.length > 0 ? conflictos : undefined,
+      mensajeConflicto: conflictos.length > 0 
+        ? `⚠️ Se detectaron ${conflictos.length} conflicto(s) de horario: ${conflictos.map(c => `"${c.titulo}" a las ${new Date(c.fechaProg).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`).join(", ")}`
+        : undefined
+    }, { status: 201 });
   } catch (error: any) {
     console.error("Error al crear aviso:", error);
     return NextResponse.json(

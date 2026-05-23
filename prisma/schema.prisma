@@ -1,10 +1,63 @@
 generator client {
   provider   = "prisma-client-js"
-  engineType = "library"
 }
 
 datasource db {
   provider = "mysql"
+}
+
+enum EstadoCliente {
+  PENDIENTE
+  ENVIADO
+  PAGADO
+  CERRADO
+}
+
+enum TipoCliente {
+  CRM
+  PAGINA_WEB
+  ACTIVAQ
+}
+
+enum Plan {
+  BASIC
+  BUSINESS
+  CATALOG
+}
+
+enum DemoReseña {
+  INTERESADO
+  NO_INTERESADO
+  VOLVER_A_PRESENTAR
+}
+
+enum EstadoSeguimiento {
+  PENDIENTE
+  ENVIADO
+  OMITIDO   // cliente ya pagó/cerrado antes de este hito
+}
+
+enum TipoTransaccion {
+  INGRESO
+  GASTO
+}
+
+enum EstadoAviso {
+  PENDIENTE
+  ENVIADO
+  FALLIDO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+}
+
+enum EstadoPago {
+  PENDIENTE
+  COMPLETADO
+  CANCELADO
 }
 
 model User {
@@ -32,7 +85,12 @@ model Cliente {
   cuentaPrueba    Boolean         @default(true)
   fechaIngreso    DateTime        @default(now())
   seguimientos    Seguimiento[]
+  avisos          Aviso[]
+  notas           Nota[]
   updatedAt       DateTime        @updatedAt
+  
+  // Tipo de cliente/fuente
+  tipoCliente     TipoCliente?    @default(PAGINA_WEB)
   
   // Plan y precio del producto
   plan            Plan?           // Plan de ActivaQR (basic, business, catalog)
@@ -43,29 +101,12 @@ model Cliente {
   demoReseña      DemoReseña?
   fechaReseña     DateTime?
   notaReseña      String?
+  notasInicialesCRM String?       // Notas iniciales para CRM (Paso 1)
+  fechaNotasInicialesCRM DateTime?
   compraRealizada Boolean         @default(false)
   fechaCompra     DateTime?
   montoTotal      Decimal?        @db.Decimal(10,2)
   pagos           Pago[]
-}
-
-enum EstadoCliente {
-  PENDIENTE
-  ENVIADO
-  PAGADO
-  CERRADO
-}
-
-enum Plan {
-  BASIC
-  BUSINESS
-  CATALOG
-}
-
-enum DemoReseña {
-  INTERESADO
-  NO_INTERESADO
-  VOLVER_A_PRESENTAR
 }
 
 model Seguimiento {
@@ -80,12 +121,6 @@ model Seguimiento {
   createdAt   DateTime          @default(now())
 }
 
-enum EstadoSeguimiento {
-  PENDIENTE
-  ENVIADO
-  OMITIDO   // cliente ya pagó/cerrado antes de este hito
-}
-
 model Transaccion {
   id          String              @id @default(cuid())
   tipo        TipoTransaccion
@@ -97,11 +132,6 @@ model Transaccion {
   createdAt   DateTime            @default(now())
 }
 
-enum TipoTransaccion {
-  INGRESO
-  GASTO
-}
-
 model Aviso {
   id          String        @id @default(cuid())
   titulo      String
@@ -109,19 +139,27 @@ model Aviso {
   telefono    String        // número destino WhatsApp
   fechaProg   DateTime
   estado      EstadoAviso   @default(PENDIENTE)
+  clienteId   String?       // ID del cliente relacionado
+  cliente     Cliente?      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   creadoPor   String        // userId
   createdAt   DateTime      @default(now())
-}
-
-enum EstadoAviso {
-  PENDIENTE
-  ENVIADO
-  FALLIDO
 }
 
 model Configuracion {
   key   String @id
   value String @db.Text
+}
+
+model Nota {
+  id          String        @id @default(cuid())
+  clienteId   String
+  cliente     Cliente       @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  contenido   String        @db.Text
+  tipo        String?       // tipo de nota (RESEÑA, INICIAL, PAGO, MANUAL)
+  fechaNota   DateTime      @default(now())
+  analizado   Boolean       @default(false) // si ya fue analizado por DeepSeek
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 }
 
 model Pago {
@@ -135,16 +173,4 @@ model Pago {
   notas       String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-}
-
-enum MetodoPago {
-  EFECTIVO
-  TRANSFERENCIA
-  TARJETA
-}
-
-enum EstadoPago {
-  PENDIENTE
-  COMPLETADO
-  CANCELADO
 }

@@ -6,6 +6,31 @@ import { EstadoCliente, EstadoSeguimiento, DemoReseña, MetodoPago } from "@pris
 import { enviarWhatsApp } from "@/lib/evolution";
 import { crearAvisosRecontacto } from "@/lib/recontactos";
 
+// Función auxiliar para analizar notas y crear avisos automáticamente
+async function analizarNotaYCrearAviso(clienteId: string, nota: string) {
+  try {
+    const response = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/deepseek/analyze-note`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        clienteId,
+        nota,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Análisis de nota completado:", data);
+      return data;
+    }
+  } catch (error) {
+    console.error("Error al analizar nota:", error);
+  }
+  return null;
+}
+
 // PATCH: Actualizar el estado o flujo de seguimiento de un cliente
 export async function PATCH(
   request: NextRequest,
@@ -108,6 +133,7 @@ export async function PATCH(
           // Se transforma inmediatamente de lead a cliente
           updateData.estado = EstadoCliente.PAGADO;
           // Si hace un abono, forzamos que se marque como INTERESADO para avanzar en el pipeline
+          // @ts-ignore - demoReseña no está en los tipos generados por Prisma temporalmente
           updateData.demoReseña = "INTERESADO" as DemoReseña;
 
           // Crear el abono inicial
@@ -150,6 +176,11 @@ export async function PATCH(
         where: { id },
         data: updateData,
       });
+
+      // Analizar la nota para detectar fechas/horarios y crear avisos automáticamente
+      if (nota && nota.trim()) {
+        await analizarNotaYCrearAviso(id, nota);
+      }
 
       return NextResponse.json(cliente);
     }
@@ -256,6 +287,11 @@ export async function PATCH(
         },
       });
 
+      // Analizar la nota para detectar fechas/horarios y crear avisos automáticamente
+      if (notas && notas.trim()) {
+        await analizarNotaYCrearAviso(id, notas);
+      }
+
       return NextResponse.json(cliente);
     }
 
@@ -266,6 +302,91 @@ export async function PATCH(
         where: { id },
         data: { notaReseña: null },
       });
+      return NextResponse.json(cliente);
+    }
+
+    // ── Agregar nota adicional para clientes completados ──
+    if (body.action === "agregar_nota_adicional") {
+      const { nota } = body;
+
+      if (!nota || !nota.trim()) {
+        return NextResponse.json({ error: "La nota no puede estar vacía" }, { status: 400 });
+      }
+
+      // Obtener el cliente para conservar y acumular notas anteriores
+      const clienteInfo = await prisma.cliente.findUnique({ where: { id } });
+      if (!clienteInfo) {
+        return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+      }
+
+      let nuevaNota = clienteInfo.notaReseña || "";
+      const fechaLabel = new Date().toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const entradaNota = `[Nota Adicional] (${fechaLabel}): ${nota.trim()}`;
+      nuevaNota = nuevaNota ? `${nuevaNota}\n\n${entradaNota}` : entradaNota;
+
+      const cliente = await prisma.cliente.update({
+        where: { id },
+        data: {
+          notaReseña: nuevaNota,
+        },
+      });
+
+      // Analizar la nota para detectar fechas/horarios y crear avisos automáticamente
+      if (nota && nota.trim()) {
+        await analizarNotaYCrearAviso(id, nota);
+      }
+
+      return NextResponse.json(cliente);
+    }
+
+    // ── Guardar notas iniciales para CRM (Paso 1) ──
+    if (body.action === "guardar_notas_iniciales_crm") {
+      const { notas } = body;
+
+      if (!notas || !notas.trim()) {
+        return NextResponse.json({ error: "Las notas no pueden estar vacías" }, { status: 400 });
+      }
+
+      const cliente = await prisma.cliente.update({
+        where: { id },
+        data: {
+          notasInicialesCRM: notas,
+          fechaNotasInicialesCRM: new Date(),
+          estado: EstadoCliente.ENVIADO,
+        },
+      });
+
+      // Analizar la nota para detectar fechas/horarios y crear avisos automáticamente
+      if (notas && notas.trim()) {
+        await analizarNotaYCrearAviso(id, notas);
+      }
+
+      return NextResponse.json(cliente);
+    }
+
+    // ── Guardar valor del producto (sin abono) ──
+    if (body.action === "guardar_valor_producto") {
+      const { valorProducto } = body;
+
+      if (!valorProducto || parseFloat(valorProducto) <= 0) {
+        return NextResponse.json({ error: "El valor del producto debe ser mayor a 0" }, { status: 400 });
+      }
+
+      const pValor = parseFloat(valorProducto);
+
+      const cliente = await prisma.cliente.update({
+        where: { id },
+        data: {
+          montoTotal: pValor,
+        },
+      });
+
       return NextResponse.json(cliente);
     }
 

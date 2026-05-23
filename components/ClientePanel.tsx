@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, Calendar, CheckCircle2, Clock,
   Send, ThumbsUp, ThumbsDown, RefreshCw, DollarSign,
-  MessageSquare, Presentation, FileText, CreditCard, Trash2, AlertTriangle
+  MessageSquare, Presentation, FileText, CreditCard, Trash2, AlertTriangle, Brain
 } from "lucide-react";
 import type { Cliente, Seguimiento } from "@prisma/client";
 import { EstadoClienteEnum, DemoReseñaEnum, MetodoPagoEnum } from "./enums";
@@ -40,6 +40,18 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
   const [loadingBorrarNotas, setLoadingBorrarNotas] = useState(false);
+
+  // Additional notes for completed clients
+  const [notaAdicional, setNotaAdicional] = useState("");
+  const [loadingNotaAdicional, setLoadingNotaAdicional] = useState(false);
+
+  // CRM initial notes (Paso 1 para CRM)
+  const [notasInicialesCRM, setNotasInicialesCRM] = useState("");
+  const [loadingNotasIniciales, setLoadingNotasIniciales] = useState(false);
+  
+  // DeepSeek analysis
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   // Feedback
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
@@ -85,11 +97,26 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
 
   // ── Determinar el paso actual ──
   const getPasoActual = (): number => {
-    if (!cliente.demoPresentada) return 1;
-    if (!cliente.demoReseña || cliente.demoReseña === DemoReseñaEnum.VOLVER_A_PRESENTAR) return 2;
-    if (cliente.demoReseña === DemoReseñaEnum.NO_INTERESADO) return -1; // Cerrado
-    if (!cliente.compraRealizada) return 3;
-    return 4; // Completado
+    // @ts-ignore
+    const esCRM = (cliente as any).tipoCliente === "CRM";
+
+    if (esCRM) {
+      // Flujo CRM: Paso 1 (Notas iniciales) -> Paso 2 (Demo) -> Paso 3 (Interés)
+      // @ts-ignore
+      if (!(cliente as any).notasInicialesCRM) return 1;
+      if (!cliente.demoPresentada) return 2;
+      if (!cliente.demoReseña || cliente.demoReseña === DemoReseñaEnum.VOLVER_A_PRESENTAR) return 3;
+      if (cliente.demoReseña === DemoReseñaEnum.NO_INTERESADO) return -1; // Cerrado
+      if (!cliente.compraRealizada) return 4;
+      return 5; // cliente
+    } else {
+      // Flujo normal: Paso 1 (Demo) -> Paso 2 (Interés) -> Paso 3 (Pago)
+      if (!cliente.demoPresentada) return 1;
+      if (!cliente.demoReseña || cliente.demoReseña === DemoReseñaEnum.VOLVER_A_PRESENTAR) return 2;
+      if (cliente.demoReseña === DemoReseñaEnum.NO_INTERESADO) return -1; // Cerrado
+      if (!cliente.compraRealizada) return 3;
+      return 4; // cliente
+    }
   };
 
   const pasoActual = getPasoActual();
@@ -254,6 +281,32 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
     }
   };
 
+  const handleAnalyzeNotas = async () => {
+    if (!cliente?.id) return;
+    setLoadingAnalysis(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/deepseek/analyze-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clienteId: cliente.id }),
+      });
+
+      if (!res.ok) throw new Error("Error al analizar notas");
+      const data = await res.json();
+
+      setAnalysisResult(data);
+      setFeedback({ 
+        type: "success", 
+        msg: `✅ Análisis completado: ${data.avisosCreados} avisos creados, ${data.tareasExtraidas} tareas extraídas` 
+      });
+    } catch (err: any) {
+      setFeedback({ type: "error", msg: err.message || "Error al analizar notas" });
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  };
+
 
   const handleDeleteCliente = async () => {
     if (!cliente?.id) return;
@@ -289,6 +342,56 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
       setFeedback({ type: "error", msg: "Error al borrar notas" });
     } finally {
       setLoadingBorrarNotas(false);
+    }
+  };
+
+  const handleAgregarNotaAdicional = async () => {
+    if (!cliente?.id || !notaAdicional.trim()) return;
+    setLoadingNotaAdicional(true);
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "agregar_nota_adicional",
+          nota: notaAdicional,
+        }),
+      });
+      if (!res.ok) throw new Error("Error al agregar nota adicional");
+      const updated = await res.json();
+      setFeedback({ type: "success", msg: "✅ Nota agregada correctamente" });
+      setNotaAdicional("");
+      onStatusChangeSuccess(updated);
+    } catch (err) {
+      setFeedback({ type: "error", msg: "Error al agregar nota adicional" });
+    } finally {
+      setLoadingNotaAdicional(false);
+    }
+  };
+
+  const handleGuardarNotasInicialesCRM = async () => {
+    if (!cliente?.id || !notasInicialesCRM.trim()) return;
+    setLoadingNotasIniciales(true);
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "guardar_notas_iniciales_crm",
+          notas: notasInicialesCRM,
+        }),
+      });
+      if (!res.ok) throw new Error("Error al guardar notas iniciales");
+      const updated = await res.json();
+      setFeedback({ type: "success", msg: "✅ Notas iniciales guardadas correctamente" });
+      setNotasInicialesCRM("");
+      onStatusChangeSuccess(updated);
+    } catch (err) {
+      setFeedback({ type: "error", msg: "Error al guardar notas iniciales" });
+    } finally {
+      setLoadingNotasIniciales(false);
     }
   };
 
@@ -334,6 +437,14 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
             <h2 className="text-xl font-semibold text-zinc-100 tracking-tight">{cliente.nombre}</h2>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={handleAnalyzeNotas}
+              disabled={loadingAnalysis}
+              title="Analizar notas con IA"
+              className="text-zinc-600 hover:text-purple-400 p-2 rounded-xl hover:bg-purple-500/10 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {loadingAnalysis ? <RefreshCw size={16} className="animate-spin" /> : <Brain size={16} />}
+            </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               title="Eliminar cliente"
@@ -441,26 +552,57 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
             </div>
           )}
 
-          {/* ══════ PASO 1: Entrega de Demo ══════ */}
+          {/* ══════ PASO 1: Notas Iniciales (CRM) o Demo (Normal) ══════ */}
           {pasoActual === 1 && (
             <div className="space-y-4">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Paso 1 — Entrega de Demo
-              </h3>
-              <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-5 space-y-4">
-                <p className="text-sm text-zinc-400 leading-relaxed">
-                  Al presionar este botón confirmas que le presentaste la demo/página al cliente.
-                  El estado pasará a <span className="text-amber-400 font-semibold">"Seguimiento"</span>.
-                </p>
-                <button
-                  onClick={handleMarcarDemo}
-                  disabled={loading}
-                  className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                  <Presentation size={16} />
-                  {loading ? "Procesando..." : "Demo Presentada ✓"}
-                </button>
-              </div>
+              {/* @ts-ignore */}
+              {(cliente as any).tipoCliente === "CRM" ? (
+                <>
+                  <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                    Paso 1 — Notas Iniciales del Lead
+                  </h3>
+                  <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-5 space-y-4">
+                    <p className="text-sm text-zinc-400 leading-relaxed">
+                      Agrega las notas iniciales sobre este posible cliente antes de presentar la demo.
+                    </p>
+                    <textarea
+                      value={notasInicialesCRM}
+                      onChange={(e) => setNotasInicialesCRM(e.target.value)}
+                      placeholder="Ej: Cliente interesado en sistema CRM, tiene 20 empleados, busca automatización de ventas..."
+                      rows={4}
+                      className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
+                    />
+                    <button
+                      onClick={handleGuardarNotasInicialesCRM}
+                      disabled={loadingNotasIniciales || !notasInicialesCRM.trim()}
+                      className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      <FileText size={16} />
+                      {loadingNotasIniciales ? "Guardando..." : "Guardar Notas y Continuar"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                    Paso 1 — Entrega de Demo
+                  </h3>
+                  <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-5 space-y-4">
+                    <p className="text-sm text-zinc-400 leading-relaxed">
+                      Al presionar este botón confirmas que le presentaste la demo/página al cliente.
+                      El estado pasará a <span className="text-amber-400 font-semibold">"Seguimiento"</span>.
+                    </p>
+                    <button
+                      onClick={handleMarcarDemo}
+                      disabled={loading}
+                      className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      <Presentation size={16} />
+                      {loading ? "Procesando..." : "Demo Presentada ✓"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -948,24 +1090,50 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
           })()}
 
 
-          {/* ══════ ESTADO FINAL: Completado ══════ */}
+          {/* ══════ ESTADO FINAL: cliente ══════ */}
           {pasoActual === 4 && (
-            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-6 text-center space-y-3">
-              <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
-              <h3 className="text-lg font-bold text-emerald-400">Cliente Convertido</h3>
-              {cliente.montoTotal && (
-                <p className="text-2xl font-bold text-zinc-100">${Number(cliente.montoTotal).toFixed(2)}</p>
-              )}
-              {cliente.fechaCompra && (
-                <p className="text-xs text-zinc-500">
-                  Pagado el{" "}
-                  {new Date(cliente.fechaCompra).toLocaleDateString("es-MX", {
-                    day: "2-digit",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </p>
-              )}
+            <div className="space-y-4">
+              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-6 text-center space-y-3">
+                <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
+                <h3 className="text-lg font-bold text-emerald-400">Cliente Convertido</h3>
+                {cliente.montoTotal && (
+                  <p className="text-2xl font-bold text-zinc-100">${Number(cliente.montoTotal).toFixed(2)}</p>
+                )}
+                {cliente.fechaCompra && (
+                  <p className="text-xs text-zinc-500">
+                    Pagado el{" "}
+                    {new Date(cliente.fechaCompra).toLocaleDateString("es-MX", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </p>
+                )}
+              </div>
+
+              {/* Agregar nota adicional para clientes completados */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                  Agregar Nota Adicional
+                </h3>
+                <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-4 space-y-3">
+                  <textarea
+                    value={notaAdicional}
+                    onChange={(e) => setNotaAdicional(e.target.value)}
+                    placeholder="Escribe una nota adicional sobre este cliente..."
+                    rows={3}
+                    className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
+                  />
+                  <button
+                    onClick={handleAgregarNotaAdicional}
+                    disabled={loadingNotaAdicional || !notaAdicional.trim()}
+                    className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    <FileText size={14} />
+                    {loadingNotaAdicional ? "Agregando..." : "Agregar Nota"}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

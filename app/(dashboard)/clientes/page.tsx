@@ -24,6 +24,7 @@ export default function ClientesPage() {
   const [newTelefono, setNewTelefono] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newNombreNegocio, setNewNombreNegocio] = useState("");
+  const [newTipoCliente, setNewTipoCliente] = useState("PAGINA_WEB");
   const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -61,6 +62,7 @@ export default function ClientesPage() {
           telefono: newTelefono,
           email: newEmail,
           nombre_negocio: newNombreNegocio,
+          tipoCliente: newTipoCliente,
           force: options?.force || false,
           reactivate: options?.reactivate || false,
         }),
@@ -224,7 +226,7 @@ export default function ClientesPage() {
             <thead>
               <tr className="border-b border-zinc-900/80 bg-zinc-900/20">
                 <th className="py-4 px-6 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-                  Cliente
+                  Lead
                 </th>
                 <th className="py-4 px-6 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                   WhatsApp
@@ -355,7 +357,7 @@ export default function ClientesPage() {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-zinc-600">Completado/Ninguno</span>
+                          <span className="text-zinc-600">cliente/Ninguno</span>
                         )}
                       </td>
 
@@ -471,6 +473,31 @@ export default function ClientesPage() {
                   placeholder="Ej: Taquería Los Primos"
                   className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-xl text-xs text-zinc-200 placeholder-zinc-650 outline-none transition-colors"
                 />
+              </div>
+
+              {/* Tipo de Cliente */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Tipo de Cliente *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: "PAGINA_WEB", label: "Página Web" },
+                    { value: "CRM", label: "CRM" },
+                    { value: "ACTIVAQ", label: "ActivaQR" },
+                  ].map((tipo) => (
+                    <button
+                      key={tipo.value}
+                      type="button"
+                      onClick={() => setNewTipoCliente(tipo.value)}
+                      className={`py-2.5 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                        newTipoCliente === tipo.value
+                          ? "bg-zinc-100 text-zinc-950 border-zinc-200"
+                          : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                      }`}
+                    >
+                      {tipo.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Acciones */}

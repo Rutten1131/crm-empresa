@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { nombre, telefono, email, nombre_negocio, force, reactivate } = body;
+    const { nombre, telefono, email, nombre_negocio, tipoCliente, force, reactivate } = body;
 
     if (!nombre || !telefono) {
       return NextResponse.json(
@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
           nombre,
           email: email || clienteExistente.email,
           nombre_negocio: nombre_negocio || clienteExistente.nombre_negocio,
+          tipoCliente: tipoCliente || clienteExistente.tipoCliente,
           estado: EstadoCliente.PENDIENTE,
         },
       });
@@ -136,6 +137,7 @@ export async function POST(request: NextRequest) {
         telefono: telefonoNormalizado,
         email: email || null,
         nombre_negocio: nombre_negocio || null,
+        tipoCliente: tipoCliente || "PAGINA_WEB",
         estado: EstadoCliente.PENDIENTE,
       },
     });
