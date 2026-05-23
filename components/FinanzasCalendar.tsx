@@ -290,19 +290,32 @@ export default function FinanzasCalendar({ transacciones }: FinanzasCalendarProp
                 {day.date.getDate()}
               </div>
               {day.transacciones.length > 0 && (
-                <div className="space-y-1">
-                  {day.ingresos > 0 && (
-                    <div className="text-[9px] text-emerald-400 font-mono">
-                      +${day.ingresos}
-                    </div>
-                  )}
-                  {day.gastos > 0 && (
-                    <div className="text-[9px] text-red-400 font-mono">
-                      -${day.gastos}
-                    </div>
-                  )}
+                <div>
+                  {/* Vista Desktop: textos de dinero */}
+                  <div className="hidden sm:block space-y-1">
+                    {day.ingresos > 0 && (
+                      <div className="text-[9px] text-emerald-400 font-mono">
+                        +${day.ingresos}
+                      </div>
+                    )}
+                    {day.gastos > 0 && (
+                      <div className="text-[9px] text-red-400 font-mono">
+                        -${day.gastos}
+                      </div>
+                    )}
+                  </div>
+                  {/* Vista Móvil: dots de colores */}
+                  <div className="sm:hidden flex justify-center gap-1 mt-1">
+                    {day.ingresos > 0 && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 block" />
+                    )}
+                    {day.gastos > 0 && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 block" />
+                    )}
+                  </div>
                 </div>
               )}
+
             </div>
           ))}
         </div>

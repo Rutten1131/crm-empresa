@@ -323,7 +323,8 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
       <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="relative w-full max-w-lg h-full bg-zinc-900 border-l border-zinc-800 shadow-2xl flex flex-col z-10 animate-slide-in">
+      <div className="relative w-full md:max-w-lg h-full bg-zinc-900 border-l border-zinc-800 shadow-2xl flex flex-col z-10 animate-slide-in">
+
         {/* Header */}
         <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
           <div className="space-y-1">
