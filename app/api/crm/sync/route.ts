@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
           email: c.email ?? "",
           whatsapp: c.whatsapp ?? "",
           telefono: c.telefono ?? "",
-          // optional fields can be added here if schema updated later
+          plan: c.plan ? c.plan.toUpperCase() : null,
         },
         create: {
           id: c.id,
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
           email: c.email ?? "",
           whatsapp: c.whatsapp ?? "",
           telefono: c.telefono ?? "",
-          // optional fields can be added here if schema updated later
+          plan: c.plan ? c.plan.toUpperCase() : null,
         },
       })
     );

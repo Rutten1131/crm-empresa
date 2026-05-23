@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, Calendar, CheckCircle2, Clock,
   Send, ThumbsUp, ThumbsDown, RefreshCw, DollarSign,
-  MessageSquare, Presentation, FileText, CreditCard
+  MessageSquare, Presentation, FileText, CreditCard, Trash2, AlertTriangle
 } from "lucide-react";
 import type { Cliente, Seguimiento } from "@prisma/client";
 import { EstadoClienteEnum, DemoReseñaEnum, MetodoPagoEnum } from "./enums";
@@ -13,40 +13,72 @@ interface ClientePanelProps {
   cliente: Cliente | null;
   onClose: () => void;
   onStatusChangeSuccess: (updatedCliente?: any) => void;
+  onClienteDeleted?: (clienteId: string) => void;
 }
 
-export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }: ClientePanelProps) {
+export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, onClienteDeleted }: ClientePanelProps) {
   const [loading, setLoading] = useState(false);
 
   // Paso 2 state
+  const [resultadoPaso2, setResultadoPaso2] = useState<DemoReseñaEnum | null>(null);
   const [nota, setNota] = useState("");
-  const [enviarWhatsapp, setEnviarWhatsapp] = useState(false);
+  const [registrarAbonoInicial, setRegistrarAbonoInicial] = useState(false);
+  const [valorProducto, setValorProducto] = useState("");
+  const [montoAbono, setMontoAbono] = useState("");
+  const [metodoPagoAbono, setMetodoPagoAbono] = useState<MetodoPagoEnum>(MetodoPagoEnum.TRANSFERENCIA);
 
   // Paso 3 state
   const [monto, setMonto] = useState("");
   const [metodo, setMetodo] = useState<MetodoPagoEnum>(MetodoPagoEnum.TRANSFERENCIA);
   const [notaPago, setNotaPago] = useState("");
   const [tipoCierre, setTipoCierre] = useState<"pago" | "nota">("pago");
-  const [agregarGasto, setAgregarGasto] = useState(false);
-  const [montoGasto, setMontoGasto] = useState("");
-  const [descripcionGasto, setDescripcionGasto] = useState("");
+
+  // Historial de pagos
+  const [pagosList, setPagosList] = useState<any[]>([]);
+
+  // Delete states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [loadingDelete, setLoadingDelete] = useState(false);
+  const [loadingBorrarNotas, setLoadingBorrarNotas] = useState(false);
 
   // Feedback
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
+  const fetchPagos = async () => {
+    if (!cliente?.id) return;
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}/pagos`);
+      if (res.ok) {
+        const data = await res.json();
+        setPagosList(data);
+      }
+    } catch (err) {
+      console.error("Error al cargar pagos:", err);
+    }
+  };
+
   useEffect(() => {
     // Reset states when client changes
+    setResultadoPaso2(null);
     setNota("");
-    setEnviarWhatsapp(false);
+    setRegistrarAbonoInicial(false);
+    // Pre-llenar el valor del producto si ya está guardado en el cliente
+    setValorProducto(cliente?.montoTotal ? cliente.montoTotal.toString() : "");
+    setMontoAbono("");
+    setMetodoPagoAbono(MetodoPagoEnum.TRANSFERENCIA);
     setMonto("");
     setMetodo(MetodoPagoEnum.TRANSFERENCIA);
     setNotaPago("");
     setTipoCierre("pago");
-    setAgregarGasto(false);
-    setMontoGasto("");
-    setDescripcionGasto("");
     setFeedback(null);
+
+    if (cliente?.id) {
+      fetchPagos();
+    } else {
+      setPagosList([]);
+    }
   }, [cliente?.id]);
+
 
 
   if (!cliente) return null;
@@ -84,6 +116,21 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
   };
 
   const handleRegistrarInteres = async (resultado: DemoReseñaEnum) => {
+    const hasAbono = (resultado === DemoReseñaEnum.INTERESADO || resultado === DemoReseñaEnum.VOLVER_A_PRESENTAR) && montoAbono && parseFloat(montoAbono) > 0;
+
+    if (resultado === DemoReseñaEnum.INTERESADO || resultado === DemoReseñaEnum.VOLVER_A_PRESENTAR) {
+      if (hasAbono) {
+        if (!valorProducto || parseFloat(valorProducto) <= 0) {
+          setFeedback({ type: "error", msg: "Ingresa un valor de producto válido" });
+          return;
+        }
+        if (parseFloat(montoAbono) > parseFloat(valorProducto)) {
+          setFeedback({ type: "error", msg: "El abono no puede superar el valor del producto" });
+          return;
+        }
+      }
+    }
+
     setLoading(true);
     setFeedback(null);
     try {
@@ -94,10 +141,15 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
           action: "registrar_interes",
           resultado,
           nota,
-          enviarWhatsappMsg: enviarWhatsapp,
+          valorProducto: (resultado === DemoReseñaEnum.INTERESADO || resultado === DemoReseñaEnum.VOLVER_A_PRESENTAR) && valorProducto ? valorProducto : undefined,
+          montoAbono: hasAbono ? montoAbono : undefined,
+          metodoPago: hasAbono ? metodoPagoAbono : undefined,
         }),
       });
-      if (!res.ok) throw new Error("Error al registrar interés");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Error al registrar interés");
+      }
 
       const data = await res.json();
       let msg = resultado === DemoReseñaEnum.NO_INTERESADO
@@ -106,37 +158,36 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
           ? "Se marcó para volver a presentar"
           : "✅ Cliente interesado registrado";
 
-      if (data.whatsappEnviado) {
-        msg += " — WhatsApp enviado ✅";
-      } else if (data.whatsappError) {
-        msg += ` — WhatsApp falló: ${data.whatsappError}`;
-      }
-
       setFeedback({ type: "success", msg });
       setNota("");
+      setResultadoPaso2(null);
+      setValorProducto("");
+      setMontoAbono("");
+      fetchPagos(); // Recargar pagos locales
       onStatusChangeSuccess(data);
-    } catch (err) {
-      setFeedback({ type: "error", msg: "Error al registrar interés" });
+    } catch (err: any) {
+      setFeedback({ type: "error", msg: err.message || "Error al registrar interés" });
     } finally {
       setLoading(false);
     }
   };
 
   const handleRegistrarPago = async () => {
+    const totalAbonado = pagosList.reduce((sum, p) => sum + parseFloat(p.monto), 0);
+    const totalEsperado = cliente.montoTotal ? parseFloat(cliente.montoTotal.toString()) : 0;
+    const saldoPendiente = totalEsperado > 0 ? Math.max(0, totalEsperado - totalAbonado) : Infinity;
+
     if (!monto || parseFloat(monto) <= 0) {
-      setFeedback({ type: "error", msg: "Ingresa un monto de venta válido" });
+      setFeedback({ type: "error", msg: "Ingresa un monto de pago válido" });
       return;
     }
 
-    if (agregarGasto) {
-      if (!montoGasto || parseFloat(montoGasto) <= 0) {
-        setFeedback({ type: "error", msg: "Ingresa un monto de gasto válido" });
-        return;
-      }
-      if (parseFloat(montoGasto) > parseFloat(monto)) {
-        setFeedback({ type: "error", msg: "El gasto asociado no puede ser mayor que el monto de la venta" });
-        return;
-      }
+    if (totalEsperado > 0 && parseFloat(monto) > saldoPendiente) {
+      setFeedback({ 
+        type: "error", 
+        msg: `El pago no puede superar el saldo pendiente de $${saldoPendiente.toLocaleString("es-MX", { minimumFractionDigits: 2 })}` 
+      });
+      return;
     }
 
     setLoading(true);
@@ -150,9 +201,6 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
           monto,
           metodo,
           notas: notaPago,
-          registrarGasto: agregarGasto,
-          montoGasto: agregarGasto ? montoGasto : undefined,
-          descripcionGasto: agregarGasto ? descripcionGasto : undefined,
         }),
       });
 
@@ -163,16 +211,11 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
 
       const responseData = await res.json();
       let msg = "✅ Pago registrado y conectado a finanzas";
-      if (agregarGasto) {
-        msg += " + Gasto registrado ✅";
-      }
 
       setFeedback({ type: "success", msg });
       setMonto("");
       setNotaPago("");
-      setAgregarGasto(false);
-      setMontoGasto("");
-      setDescripcionGasto("");
+      fetchPagos(); // Recargar pagos locales
       onStatusChangeSuccess(responseData.cliente);
     } catch (err: any) {
       setFeedback({ type: "error", msg: err.message || "Error al registrar pago" });
@@ -211,6 +254,43 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
     }
   };
 
+
+  const handleDeleteCliente = async () => {
+    if (!cliente?.id) return;
+    setLoadingDelete(true);
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error al eliminar cliente");
+      setShowDeleteConfirm(false);
+      if (onClienteDeleted) onClienteDeleted(cliente.id);
+      onClose();
+    } catch (err) {
+      setFeedback({ type: "error", msg: "Error al eliminar el cliente. Intenta de nuevo." });
+      setShowDeleteConfirm(false);
+    } finally {
+      setLoadingDelete(false);
+    }
+  };
+
+  const handleBorrarNotas = async () => {
+    if (!cliente?.id) return;
+    setLoadingBorrarNotas(true);
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "borrar_notas" }),
+      });
+      if (!res.ok) throw new Error("Error al borrar notas");
+      const updated = await res.json();
+      setFeedback({ type: "success", msg: "✅ Notas eliminadas correctamente" });
+      onStatusChangeSuccess(updated);
+    } catch (err) {
+      setFeedback({ type: "error", msg: "Error al borrar notas" });
+    } finally {
+      setLoadingBorrarNotas(false);
+    }
+  };
 
   // ── UI Helpers ──
   const getEstadoBadge = (estado: string) => {
@@ -252,12 +332,21 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
             </span>
             <h2 className="text-xl font-semibold text-zinc-100 tracking-tight">{cliente.nombre}</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300 p-2 rounded-xl hover:bg-zinc-800/40 transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              title="Eliminar cliente"
+              className="text-zinc-600 hover:text-red-400 p-2 rounded-xl hover:bg-red-500/10 transition-colors cursor-pointer"
+            >
+              <Trash2 size={16} />
+            </button>
+            <button
+              onClick={onClose}
+              className="text-zinc-500 hover:text-zinc-300 p-2 rounded-xl hover:bg-zinc-800/40 transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -377,292 +466,485 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
           {/* ══════ PASO 2: Interés + Nota ══════ */}
           {pasoActual === 2 && (
             <div className="space-y-4">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Paso 2 — Resultado del seguimiento
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between">
+                <span>Paso 2 — Resultado del seguimiento</span>
+                {resultadoPaso2 && (
+                  <button
+                    onClick={() => {
+                      setResultadoPaso2(null);
+                      setFeedback(null);
+                    }}
+                    className="text-[10px] text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1 cursor-pointer font-bold uppercase tracking-wider"
+                  >
+                    ← Cambiar
+                  </button>
+                )}
               </h3>
-              <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-5 space-y-5">
 
-                {/* Nota */}
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-zinc-400">Nota / Resumen de la conversación</label>
-                  <textarea
-                    value={nota}
-                    onChange={(e) => setNota(e.target.value)}
-                    placeholder="¿Qué se habló? ¿Cuándo volver a presentar? Observaciones..."
-                    rows={4}
-                    className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
-                  />
-                </div>
+              {!resultadoPaso2 ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-zinc-500">Selecciona el resultado de la demo presentada:</p>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {/* Tarjeta 1: Le Interesa */}
+                    <button
+                      type="button"
+                      onClick={() => setResultadoPaso2(DemoReseñaEnum.INTERESADO)}
+                      className="w-full text-left bg-zinc-950 hover:bg-zinc-900 border border-zinc-850 hover:border-emerald-500/30 p-4 rounded-2xl transition-all cursor-pointer group flex items-start gap-4 active:scale-[0.99]"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <ThumbsUp size={18} />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <span className="block text-sm font-bold text-zinc-200 group-hover:text-emerald-400 transition-colors">Le Interesa</span>
+                        <span className="block text-xs text-zinc-500">Proceder a definir el precio del producto y registrar un abono inicial (opcional).</span>
+                      </div>
+                    </button>
 
-                {/* Toggle WhatsApp */}
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <div className={`w-10 h-5 rounded-full flex items-center p-0.5 transition-colors cursor-pointer ${
-                    enviarWhatsapp ? "bg-emerald-500" : "bg-zinc-700"
-                  }`}
-                    onClick={() => setEnviarWhatsapp(!enviarWhatsapp)}
-                  >
-                    <div className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                      enviarWhatsapp ? "translate-x-5" : "translate-x-0"
-                    }`} />
+                    {/* Tarjeta 2: Volver a Presentar */}
+                    <button
+                      type="button"
+                      onClick={() => setResultadoPaso2(DemoReseñaEnum.VOLVER_A_PRESENTAR)}
+                      className="w-full text-left bg-zinc-950 hover:bg-zinc-900 border border-zinc-850 hover:border-amber-500/30 p-4 rounded-2xl transition-all cursor-pointer group flex items-start gap-4 active:scale-[0.99]"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <RefreshCw size={18} />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <span className="block text-sm font-bold text-zinc-200 group-hover:text-amber-400 transition-colors">Volver a Presentar</span>
+                        <span className="block text-xs text-zinc-500">El lead sigue interesado pero requiere otra presentación o seguimiento posterior.</span>
+                      </div>
+                    </button>
+
+                    {/* Tarjeta 3: No le Interesa */}
+                    <button
+                      type="button"
+                      onClick={() => setResultadoPaso2(DemoReseñaEnum.NO_INTERESADO)}
+                      className="w-full text-left bg-zinc-950 hover:bg-zinc-900 border border-zinc-850 hover:border-red-500/30 p-4 rounded-2xl transition-all cursor-pointer group flex items-start gap-4 active:scale-[0.99]"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
+                        <ThumbsDown size={18} />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <span className="block text-sm font-bold text-zinc-200 group-hover:text-red-400 transition-colors">No le Interesa</span>
+                        <span className="block text-xs text-zinc-500">Cerrar el lead de manera definitiva.</span>
+                      </div>
+                    </button>
                   </div>
-                  <span className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                    Enviar nota por WhatsApp al cliente
-                  </span>
-                </label>
-
-                {/* Botones de acción */}
-                <div className="grid grid-cols-1 gap-2">
-                  <button
-                    onClick={() => handleRegistrarInteres(DemoReseñaEnum.INTERESADO)}
-                    disabled={loading}
-                    className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
-                  >
-                    <ThumbsUp size={16} />
-                    {loading ? "Procesando..." : "Interesado — Pasar a Pago"}
-                  </button>
-
-                  <button
-                    onClick={() => handleRegistrarInteres(DemoReseñaEnum.VOLVER_A_PRESENTAR)}
-                    disabled={loading}
-                    className="w-full py-2.5 px-4 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-amber-400 text-sm font-semibold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2 border border-zinc-750"
-                  >
-                    <RefreshCw size={14} />
-                    Volver a Presentar
-                  </button>
-
-                  <button
-                    onClick={() => handleRegistrarInteres(DemoReseñaEnum.NO_INTERESADO)}
-                    disabled={loading}
-                    className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-red-950/40 disabled:opacity-50 text-red-400 text-sm font-semibold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2 border border-zinc-850 hover:border-red-900/40"
-                  >
-                    <ThumbsDown size={14} />
-                    No le Interesa — Cerrar
-                  </button>
                 </div>
-              </div>
-
-              {/* Nota previa si existe (volver a presentar) */}
-              {cliente.notaReseña && (
-                <div className="bg-zinc-950 border border-amber-500/10 rounded-2xl p-4 space-y-2">
-                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Nota anterior</span>
-                  <p className="text-sm text-zinc-400 italic leading-relaxed">{cliente.notaReseña}</p>
-                  {cliente.fechaReseña && (
-                    <span className="text-[10px] text-zinc-600">
-                      {new Date(cliente.fechaReseña).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+              ) : (
+                <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-5 space-y-5 animate-fade-in">
+                  {/* outcome Header Badge */}
+                  <div className="flex items-center justify-between pb-3 border-b border-zinc-900/60">
+                    <span className="text-xs text-zinc-500">Resultado seleccionado:</span>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${
+                      resultadoPaso2 === DemoReseñaEnum.INTERESADO
+                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                        : resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR
+                          ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                    }`}>
+                      {resultadoPaso2 === DemoReseñaEnum.INTERESADO && <ThumbsUp size={12} />}
+                      {resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR && <RefreshCw size={12} />}
+                      {resultadoPaso2 === DemoReseñaEnum.NO_INTERESADO && <ThumbsDown size={12} />}
+                      {resultadoPaso2 === DemoReseñaEnum.INTERESADO ? "Le Interesa" : resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR ? "Volver a Presentar" : "No le Interesa"}
                     </span>
+                  </div>
+
+                  {(resultadoPaso2 === DemoReseñaEnum.INTERESADO || resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR) && (
+                    <div className="space-y-4">
+                      {/* PRECIO DEL PRODUCTO */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 flex items-center justify-between">
+                          <span>Valor total del producto a vender ($)</span>
+                          {cliente.montoTotal ? (
+                            <span className="text-[10px] text-emerald-400 font-bold uppercase flex items-center gap-1">
+                              ✓ Guardado
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-emerald-400 font-bold uppercase">Obligatorio</span>
+                          )}
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-sm">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={valorProducto}
+                            onChange={(e) => {
+                              setValorProducto(e.target.value);
+                              if (montoAbono && parseFloat(montoAbono) > parseFloat(e.target.value || "0")) {
+                                setMontoAbono("");
+                              }
+                            }}
+                            placeholder="0.00"
+                            className={`w-full pl-8 pr-4 py-3 border rounded-xl text-sm outline-none transition-colors font-mono ${
+                              cliente.montoTotal
+                                ? "bg-emerald-950/20 border-emerald-500/20 text-emerald-300 focus:border-emerald-500/40"
+                                : "bg-zinc-900 border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 text-zinc-100"
+                            } placeholder-zinc-650`}
+                          />
+                        </div>
+                        {cliente.montoTotal && (
+                          <p className="text-[10px] text-zinc-500 font-medium">
+                            Precio registrado previamente. Puedes modificarlo si cambió.
+                          </p>
+                        )}
+                      </div>
+
+
+                      {/* ABONO INICIAL (Habilitado solo si se colocó precio) */}
+                      {(() => {
+                        const isAbonoDisabled = !valorProducto || parseFloat(valorProducto) <= 0;
+                        return (
+                          <div className="space-y-2">
+                            <label className={`text-xs font-semibold flex items-center justify-between ${isAbonoDisabled ? "text-zinc-600" : "text-zinc-400"}`}>
+                              <span>Monto del abono inicial ($)</span>
+                              <span className="text-[10px] text-zinc-500 font-bold uppercase">Opcional</span>
+                            </label>
+                            <div className="relative">
+                              <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm ${isAbonoDisabled ? "text-zinc-700" : "text-zinc-500"}`}>$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                disabled={isAbonoDisabled}
+                                value={montoAbono}
+                                onChange={(e) => setMontoAbono(e.target.value)}
+                                placeholder={isAbonoDisabled ? "Ingresa el precio primero" : "0.00"}
+                                className={`w-full pl-8 pr-4 py-3 border rounded-xl text-sm outline-none transition-colors font-mono ${
+                                  isAbonoDisabled
+                                    ? "bg-zinc-900/30 border-zinc-850/50 text-zinc-600 placeholder-zinc-700 cursor-not-allowed"
+                                    : "bg-zinc-900 border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 text-zinc-100 placeholder-zinc-600"
+                                }`}
+                              />
+                            </div>
+                            
+                            {/* Mensajes informativos y de validación reactivos */}
+                            {isAbonoDisabled ? (
+                              <p className="text-[10px] text-amber-500/80 font-medium">
+                                ⚠️ Ingresa el valor del producto antes de colocar un abono.
+                              </p>
+                            ) : montoAbono && parseFloat(montoAbono) > parseFloat(valorProducto) ? (
+                              <p className="text-[10px] text-red-400 font-bold animate-pulse">
+                                ❌ El abono (${parseFloat(montoAbono).toFixed(2)}) no puede ser mayor que el valor del producto (${parseFloat(valorProducto).toFixed(2)}).
+                              </p>
+                            ) : montoAbono && parseFloat(montoAbono) > 0 ? (
+                              <p className="text-[10px] text-emerald-400 font-bold">
+                                ✅ Abono inicial válido. Se registrará en finanzas y el lead se convertirá en cliente.
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-zinc-550 font-medium">
+                                Deja vacío si solo quieres guardar que le interesa pero sin recibir dinero aún.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* MÉTODO DE PAGO (Solo si hay abono inicial válido) */}
+                      {montoAbono && parseFloat(montoAbono) > 0 && valorProducto && parseFloat(montoAbono) <= parseFloat(valorProducto) && (
+                        <div className="space-y-2 animate-fade-in pt-1">
+                          <label className="text-xs font-semibold text-zinc-400">Método de pago del abono</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {([
+                              { value: MetodoPagoEnum.TRANSFERENCIA, label: "Transferencia" },
+                              { value: MetodoPagoEnum.EFECTIVO, label: "Efectivo" },
+                              { value: MetodoPagoEnum.TARJETA, label: "Tarjeta" },
+                            ]).map((m) => (
+                              <button
+                                key={m.value}
+                                type="button"
+                                onClick={() => setMetodoPagoAbono(m.value)}
+                                className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                                  metodoPagoAbono === m.value
+                                    ? "bg-zinc-150 text-zinc-950 border-zinc-200"
+                                    : "bg-zinc-900 border-zinc-800 text-zinc-450 hover:text-zinc-200 hover:border-zinc-750"
+                                }`}
+                              >
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
+
+                  {/* NOTA DE CONVERSACIÓN (Para cualquier tipo de resultado) */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-zinc-400">
+                      {resultadoPaso2 === DemoReseñaEnum.NO_INTERESADO ? "Razón del cierre (opcional)" : "Nota / Resumen de la conversación (opcional)"}
+                    </label>
+                    <textarea
+                      value={nota}
+                      onChange={(e) => setNota(e.target.value)}
+                      placeholder={
+                        resultadoPaso2 === DemoReseñaEnum.INTERESADO
+                          ? "Ej: Le encantó el catálogo móvil, solicita instalarlo hoy mismo..."
+                          : resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR
+                            ? "Ej: El gerente no estuvo presente, agendamos para el jueves..."
+                            : "Ej: Indica que ya tiene un sistema similar contratado..."
+                      }
+                      rows={3}
+                      className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-650 outline-none transition-colors resize-none"
+                    />
+                  </div>
+
+                  {/* Toggle WhatsApp removed as requested - Alerts are internal only */}
+
+                  {/* Botón de Confirmación Principal */}
+                  {(() => {
+                    const hasAbonoVal = !!montoAbono && parseFloat(montoAbono) > 0;
+                    const valProdFloat = valorProducto ? parseFloat(valorProducto) : 0;
+                    const abonoFloat = montoAbono ? parseFloat(montoAbono) : 0;
+
+                    // Deshabilitar botón si intentan meter abono inválido
+                    const isSubmitDisabled = loading || (hasAbonoVal && (valProdFloat <= 0 || abonoFloat > valProdFloat));
+
+                    let btnText = "Guardar y Continuar";
+                    let btnColor = "bg-blue-600 hover:bg-blue-500 text-white";
+
+                    if (resultadoPaso2 === DemoReseñaEnum.INTERESADO || resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR) {
+                      if (hasAbonoVal) {
+                        btnText = `Confirmar Venta y Registrar Abono ($${abonoFloat.toFixed(2)})`;
+                        btnColor = "bg-emerald-600 hover:bg-emerald-500 text-white";
+                      } else if (resultadoPaso2 === DemoReseñaEnum.INTERESADO) {
+                        btnText = "Confirmar Interés (Mover a Pagos)";
+                        btnColor = "bg-blue-600 hover:bg-blue-500 text-white";
+                      } else {
+                        btnText = "Guardar y Reprogramar Seguimiento";
+                        btnColor = "bg-amber-600 hover:bg-amber-500 text-zinc-950";
+                      }
+                    } else if (resultadoPaso2 === DemoReseñaEnum.NO_INTERESADO) {
+                      btnText = "Confirmar y Cerrar Lead ❌";
+                      btnColor = "bg-red-650 hover:bg-red-600 text-white";
+                    }
+
+                    return (
+                      <button
+                        onClick={() => handleRegistrarInteres(resultadoPaso2)}
+                        disabled={isSubmitDisabled}
+                        className={`w-full py-3 px-4 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2 ${btnColor}`}
+                      >
+                        {resultadoPaso2 === DemoReseñaEnum.INTERESADO && <ThumbsUp size={16} />}
+                        {resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR && <RefreshCw size={16} />}
+                        {resultadoPaso2 === DemoReseñaEnum.NO_INTERESADO && <ThumbsDown size={16} />}
+                        {loading ? "Procesando..." : btnText}
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
             </div>
           )}
 
           {/* ══════ PASO 3: Pago o Nota ══════ */}
-          {pasoActual === 3 && (
-            <div className="space-y-4">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Paso 3 — Cierre de Lead
-              </h3>
-              
-              {/* Premium Selector Tabs */}
-              <div className="flex bg-zinc-950 border border-zinc-850 rounded-xl p-1 gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTipoCierre("pago");
-                    setFeedback(null);
-                  }}
-                  className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    tipoCierre === "pago"
-                      ? "bg-zinc-900 text-zinc-150 border border-zinc-800 shadow"
-                      : "text-zinc-500 hover:text-zinc-350"
-                  }`}
-                >
-                  <CreditCard size={14} />
-                  Registrar Pago
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTipoCierre("nota");
-                    setFeedback(null);
-                  }}
-                  className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    tipoCierre === "nota"
-                      ? "bg-zinc-900 text-zinc-150 border border-zinc-800 shadow"
-                      : "text-zinc-500 hover:text-zinc-350"
-                  }`}
-                >
-                  <FileText size={14} />
-                  Solo Registrar Nota
-                </button>
-              </div>
+          {pasoActual === 3 && (() => {
+            const hasMontoTotal = cliente.montoTotal !== null && cliente.montoTotal !== undefined;
+            const totalEsperado = hasMontoTotal ? parseFloat(cliente.montoTotal!.toString()) : 0;
+            const totalAbonado = pagosList.reduce((sum, p) => sum + parseFloat(p.monto), 0);
+            const saldoPendiente = totalEsperado > 0 ? Math.max(0, totalEsperado - totalAbonado) : 0;
 
-              {/* Form Content */}
-              <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-5 space-y-5">
-                
-                {tipoCierre === "pago" ? (
-                  <>
-                    {/* Monto de venta */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400">Monto de Venta ($)</label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-sm">$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={monto}
-                          onChange={(e) => setMonto(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-8 pr-4 py-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
-                        />
+            return (
+              <div className="space-y-4">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                  {hasMontoTotal ? "Paso 3 — Cierre de Cliente / Abonos" : "Paso 3 — Cierre de Lead"}
+                </h3>
+
+                {/* Resumen de abonos si existe montoTotal */}
+                {hasMontoTotal && (
+                  <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-2xl space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-850/60">
+                        <span className="block text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Total Producto</span>
+                        <span className="text-sm font-bold text-zinc-200 font-mono">${totalEsperado.toFixed(2)}</span>
+                      </div>
+                      <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-850/60">
+                        <span className="block text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Abonado</span>
+                        <span className="text-sm font-bold text-emerald-400 font-mono">${totalAbonado.toFixed(2)}</span>
+                      </div>
+                      <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-850/60">
+                        <span className="block text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Pendiente</span>
+                        <span className="text-sm font-bold text-amber-500 font-mono">${saldoPendiente.toFixed(2)}</span>
                       </div>
                     </div>
 
-                    {/* Método de Pago */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400">Método de Pago</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {([
-                          { value: MetodoPagoEnum.TRANSFERENCIA, label: "Transferencia" },
-                          { value: MetodoPagoEnum.EFECTIVO, label: "Efectivo" },
-                          { value: MetodoPagoEnum.TARJETA, label: "Tarjeta" },
-                        ]).map((m) => (
-                          <button
-                            key={m.value}
-                            type="button"
-                            onClick={() => setMetodo(m.value)}
-                            className={`py-2.5 px-3 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
-                              metodo === m.value
-                                ? "bg-zinc-100 text-zinc-950 border-zinc-200"
-                                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
-                            }`}
-                          >
-                            {m.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Nota del pago */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400">Nota del Pago (opcional)</label>
-                      <input
-                        type="text"
-                        value={notaPago}
-                        onChange={(e) => setNotaPago(e.target.value)}
-                        placeholder="Ej: Activación plan Business"
-                        className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
-                      />
-                    </div>
-
-                    {/* ──── GASTO ASOCIADO (OPCIONAL) ──── */}
-                    <div className="pt-2 border-t border-zinc-900/60 space-y-4">
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
-                        <input
-                          type="checkbox"
-                          checked={agregarGasto}
-                          onChange={(e) => {
-                            setAgregarGasto(e.target.checked);
-                            if (!e.target.checked) {
-                              setMontoGasto("");
-                              setDescripcionGasto("");
-                            }
-                          }}
-                          className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                        />
-                        <span className="text-xs font-semibold text-zinc-450 group-hover:text-zinc-300 transition-colors">
-                          ¿Registrar un gasto asociado a este lead? (hosting, comisión, etc.)
-                        </span>
-                      </label>
-
-                      {agregarGasto && (
-                        <div className="space-y-4 bg-zinc-900/40 border border-zinc-850 p-4 rounded-xl">
-                          {/* Monto del Gasto */}
-                          <div className="space-y-2">
-                            <label className="text-xs font-semibold text-zinc-400">Monto del Gasto ($)</label>
-                            <div className="relative">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-sm">$</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={montoGasto}
-                                onChange={(e) => setMontoGasto(e.target.value)}
-                                placeholder="0.00"
-                                className="w-full pl-8 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors font-mono"
-                              />
+                    {/* Lista de abonos anteriores si existen */}
+                    {pagosList.length > 0 && (
+                      <div className="pt-2 border-t border-zinc-900/80">
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Historial de Abonos</span>
+                        <div className="mt-1.5 space-y-1.5 max-h-24 overflow-y-auto pr-1">
+                          {pagosList.map((p, pIdx) => (
+                            <div key={p.id || pIdx} className="flex flex-col gap-1 text-xs text-zinc-400 bg-zinc-900/40 px-2.5 py-2 rounded-lg border border-zinc-850/30">
+                              <div className="flex justify-between items-center">
+                                <span className="font-mono text-zinc-300 font-bold">${parseFloat(p.monto).toFixed(2)} ({p.metodo})</span>
+                                <span className="text-[10px] text-zinc-500">
+                                  {p.fechaPago ? new Date(p.fechaPago).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : ""}
+                                </span>
+                              </div>
+                              {p.notas && (
+                                <p className="text-[10px] text-zinc-500 italic mt-0.5 border-t border-zinc-900/40 pt-1">
+                                  📝 {p.notas}
+                                </p>
+                              )}
                             </div>
-                            {montoGasto && monto && parseFloat(montoGasto) > parseFloat(monto) && (
-                              <p className="text-[10px] font-semibold text-red-400 mt-1 animate-pulse">
-                                ⚠️ El gasto asociado no puede ser mayor que el monto de la venta (${parseFloat(monto).toFixed(2)})
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Descripción del Gasto */}
-                          <div className="space-y-2">
-                            <label className="text-xs font-semibold text-zinc-400">Descripción del Gasto</label>
-                            <input
-                              type="text"
-                              value={descripcionGasto}
-                              onChange={(e) => setDescripcionGasto(e.target.value)}
-                              placeholder="Ej: Registro dominio activaqr.com, comisión Cesar"
-                              className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
-                            />
-                          </div>
+                          ))}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Botón Pago */}
-                    <button
-                      onClick={handleRegistrarPago}
-                      disabled={
-                        loading || 
-                        !monto || 
-                        (agregarGasto && (!montoGasto || parseFloat(montoGasto) <= 0 || parseFloat(montoGasto) > parseFloat(monto)))
-                      }
-                      className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
-                    >
-                      <DollarSign size={16} />
-                      {loading ? "Procesando..." : "Registrar Pago y Finalizar"}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {/* Solo registrar nota */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400">Nota de Cierre / Conclusión</label>
-                      <textarea
-                        value={notaPago}
-                        onChange={(e) => setNotaPago(e.target.value)}
-                        placeholder="Escribe los detalles o notas finales por las cuales se concluye este lead..."
-                        rows={4}
-                        className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
-                      />
-                    </div>
-
-                    {/* Botón Nota */}
-                    <button
-                      onClick={handleRegistrarNotaCierre}
-                      disabled={loading || !notaPago || !notaPago.trim()}
-                      className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
-                    >
-                      <FileText size={16} />
-                      {loading ? "Procesando..." : "Registrar Nota y Finalizar"}
-                    </button>
-                  </>
+                      </div>
+                    )}
+                  </div>
                 )}
+                
+                {/* Premium Selector Tabs */}
+                <div className="flex bg-zinc-950 border border-zinc-850 rounded-xl p-1 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTipoCierre("pago");
+                      setFeedback(null);
+                    }}
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      tipoCierre === "pago"
+                        ? "bg-zinc-900 text-zinc-150 border border-zinc-800 shadow"
+                        : "text-zinc-500 hover:text-zinc-350"
+                    }`}
+                  >
+                    <CreditCard size={14} />
+                    {hasMontoTotal ? "Registrar Abono" : "Registrar Pago"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTipoCierre("nota");
+                      setFeedback(null);
+                    }}
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      tipoCierre === "nota"
+                        ? "bg-zinc-900 text-zinc-150 border border-zinc-800 shadow"
+                        : "text-zinc-500 hover:text-zinc-350"
+                    }`}
+                  >
+                    <FileText size={14} />
+                    Solo Registrar Nota
+                  </button>
+                </div>
 
-                <p className="text-[10px] text-zinc-600 text-center">
-                  {tipoCierre === "pago"
-                    ? "El pago y el gasto opcional se registrarán directamente en el módulo de Finanzas."
-                    : "Esta nota se guardará en el historial y marcará el lead como concluido sin movimientos financieros."}
-                </p>
+                {/* Form Content */}
+                <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-5 space-y-5">
+                  
+                  {tipoCierre === "pago" ? (
+                    <>
+                      {/* Monto de venta */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400">
+                          {hasMontoTotal ? "Monto a Abonar ($)" : "Monto de Venta ($)"}
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-sm">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={monto}
+                            onChange={(e) => setMonto(e.target.value)}
+                            placeholder={hasMontoTotal ? saldoPendiente.toFixed(2) : "0.00"}
+                            className="w-full pl-8 pr-4 py-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
+                          />
+                        </div>
+                        {hasMontoTotal && monto && parseFloat(monto) > saldoPendiente && (
+                          <p className="text-[10px] font-semibold text-red-400 mt-1 animate-pulse">
+                            ⚠️ El abono no puede superar el saldo pendiente de ${saldoPendiente.toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Método de Pago */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400">Método de Pago</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([
+                            { value: MetodoPagoEnum.TRANSFERENCIA, label: "Transferencia" },
+                            { value: MetodoPagoEnum.EFECTIVO, label: "Efectivo" },
+                            { value: MetodoPagoEnum.TARJETA, label: "Tarjeta" },
+                          ]).map((m) => (
+                            <button
+                              key={m.value}
+                              type="button"
+                              onClick={() => setMetodo(m.value)}
+                              className={`py-2.5 px-3 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                                metodo === m.value
+                                  ? "bg-zinc-100 text-zinc-950 border-zinc-200"
+                                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                              }`}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Nota del pago */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400">Nota del Pago (opcional)</label>
+                        <input
+                          type="text"
+                          value={notaPago}
+                          onChange={(e) => setNotaPago(e.target.value)}
+                          placeholder="Ej: Segundo abono o Pago de saldo restante"
+                          className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
+                        />
+                      </div>
+
+                      {/* Botón Pago */}
+                      <button
+                        onClick={handleRegistrarPago}
+                        disabled={
+                          loading || 
+                          !monto || 
+                          (hasMontoTotal && parseFloat(monto) > saldoPendiente)
+                        }
+                        className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
+                      >
+                        <DollarSign size={16} />
+                        {loading ? "Procesando..." : hasMontoTotal && parseFloat(monto) >= saldoPendiente ? "Registrar Pago Final y Cierre" : "Registrar Abono"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* Solo registrar nota */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400">Nota de Cierre / Conclusión</label>
+                        <textarea
+                          value={notaPago}
+                          onChange={(e) => setNotaPago(e.target.value)}
+                          placeholder="Escribe los detalles o notas finales por las cuales se concluye este lead..."
+                          rows={4}
+                          className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
+                        />
+                      </div>
+
+                      {/* Botón Nota */}
+                      <button
+                        onClick={handleRegistrarNotaCierre}
+                        disabled={loading || !notaPago || !notaPago.trim()}
+                        className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
+                      >
+                        <FileText size={16} />
+                        {loading ? "Procesando..." : "Registrar Nota y Finalizar"}
+                      </button>
+                    </>
+                  )}
+
+                  <p className="text-[10px] text-zinc-600 text-center">
+                    {tipoCierre === "pago"
+                      ? "El abono/pago se registrará directamente en el módulo de Finanzas."
+                      : "Esta nota se guardará en el historial y marcará el lead como concluido sin movimientos financieros."}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
 
           {/* ══════ ESTADO FINAL: Completado ══════ */}
@@ -704,6 +986,30 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
                   })}
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Notas de Conversación / Seguimiento */}
+          {cliente.notaReseña && (
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <FileText size={12} className="text-zinc-400" />
+                  Notas de Conversación / Seguimiento
+                </span>
+                <button
+                  onClick={handleBorrarNotas}
+                  disabled={loadingBorrarNotas}
+                  title="Borrar todas las notas"
+                  className="flex items-center gap-1 text-[10px] font-bold text-zinc-600 hover:text-red-400 transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  <Trash2 size={11} />
+                  {loadingBorrarNotas ? "Borrando..." : "Borrar notas"}
+                </button>
+              </h3>
+              <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-2xl whitespace-pre-wrap text-sm text-zinc-300 leading-relaxed font-sans shadow-inner">
+                {cliente.notaReseña}
+              </div>
             </div>
           )}
 
@@ -765,6 +1071,45 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess }
           </div>
         </div>
       </div>
+
+      {/* ── Modal de Confirmación: Eliminar Cliente ── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="relative z-10 bg-zinc-900 border border-red-500/20 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl animate-fade-in">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <AlertTriangle size={26} className="text-red-400" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-zinc-100">¿Eliminar cliente?</h3>
+                <p className="text-sm text-zinc-400">
+                  Se eliminará <span className="font-semibold text-zinc-200">{cliente.nombre}</span> y{" "}
+                  <span className="text-red-400 font-bold">todos sus datos</span>: pagos, finanzas, notas y seguimientos.
+                </p>
+                <p className="text-xs text-red-400 font-bold uppercase tracking-wider pt-1">Esta acción es irreversible.</p>
+              </div>
+              <div className="flex gap-3 w-full pt-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={loadingDelete}
+                  className="flex-1 py-2.5 px-4 bg-zinc-800 hover:bg-zinc-750 text-zinc-300 text-sm font-semibold rounded-xl transition-colors cursor-pointer border border-zinc-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDeleteCliente}
+                  disabled={loadingDelete}
+                  className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={14} />
+                  {loadingDelete ? "Eliminando..." : "Eliminar todo"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

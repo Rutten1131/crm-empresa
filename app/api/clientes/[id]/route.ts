@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { EstadoCliente, EstadoSeguimiento, DemoReseña } from "@prisma/client";
+import { EstadoCliente, EstadoSeguimiento, DemoReseña, MetodoPago } from "@prisma/client";
 import { enviarWhatsApp } from "@/lib/evolution";
+import { crearAvisosRecontacto } from "@/lib/recontactos";
 
 // PATCH: Actualizar el estado o flujo de seguimiento de un cliente
 export async function PATCH(
@@ -36,22 +37,113 @@ export async function PATCH(
         data: { estado: EstadoSeguimiento.OMITIDO },
       });
 
+      // Crear avisos de recontacto para los asesores (días 3, 7 y 12)
+      await crearAvisosRecontacto({
+        clienteId: id,
+        nombre: cliente.nombre,
+        telefono: cliente.telefono,
+        nombreNegocio: cliente.nombre_negocio,
+      });
+
       return NextResponse.json(cliente);
     }
 
     // ── Paso 2: Registrar resultado de interés ──
     if (body.action === "registrar_interes") {
-      const { resultado, nota, enviarWhatsappMsg } = body;
+      const { resultado, nota, valorProducto, montoAbono, metodoPago } = body;
+
+      // Obtener el cliente para conservar y acumular notas anteriores
+      const clienteInfo = await prisma.cliente.findUnique({ where: { id } });
+      if (!clienteInfo) {
+        return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+      }
+
+      let nuevaNota = clienteInfo.notaReseña || "";
+      if (nota && nota.trim()) {
+        const fechaLabel = new Date().toLocaleDateString("es-MX", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const prefijo = resultado === "VOLVER_A_PRESENTAR" ? "[Seguimiento]" : resultado === "NO_INTERESADO" ? "[Cierre]" : "[Interés]";
+        const entradaNota = `${prefijo} (${fechaLabel}): ${nota.trim()}`;
+        nuevaNota = nuevaNota ? `${nuevaNota}\n\n${entradaNota}` : entradaNota;
+      }
 
       const updateData: any = {
         demoReseña: resultado as DemoReseña,
         fechaReseña: new Date(),
-        notaReseña: nota || null,
+        notaReseña: nuevaNota || null,
       };
 
       // Si no le interesa, cerrar el cliente
       if (resultado === "NO_INTERESADO") {
         updateData.estado = EstadoCliente.CERRADO;
+      } else if (resultado === "INTERESADO" || resultado === "VOLVER_A_PRESENTAR") {
+        const pValor = valorProducto ? parseFloat(valorProducto) : 0;
+        if (pValor > 0) {
+          updateData.montoTotal = pValor;
+        }
+
+        // Si hay abono inicial en el Paso 2
+        if (montoAbono && parseFloat(montoAbono) > 0) {
+          const pAbono = parseFloat(montoAbono);
+
+          if (pValor <= 0) {
+            return NextResponse.json(
+              { error: "Debes ingresar el valor total del producto antes de registrar un abono" },
+              { status: 400 }
+            );
+          }
+
+          if (pAbono > pValor) {
+            return NextResponse.json(
+              { error: "El abono inicial no puede ser mayor que el valor del producto" },
+              { status: 400 }
+            );
+          }
+
+          // Se transforma inmediatamente de lead a cliente
+          updateData.estado = EstadoCliente.PAGADO;
+          // Si hace un abono, forzamos que se marque como INTERESADO para avanzar en el pipeline
+          updateData.demoReseña = "INTERESADO" as DemoReseña;
+
+          // Crear el abono inicial
+          await prisma.pago.create({
+            data: {
+              clienteId: id,
+              monto: pAbono,
+              metodo: (metodoPago as MetodoPago) || MetodoPago.TRANSFERENCIA,
+              estado: "COMPLETADO",
+              fechaPago: new Date(),
+              notas: `Abono inicial — ${nota || "Marcado como Interesado"}`,
+            },
+          });
+
+          // Obtener el cliente para el nombre
+          const clienteInfo = await prisma.cliente.findUnique({ where: { id } });
+
+          // Crear la transacción en finanzas (INGRESO)
+          await prisma.transaccion.create({
+            data: {
+              tipo: "INGRESO",
+              monto: pAbono,
+              descripcion: `Abono inicial de ${clienteInfo?.nombre || "cliente"} - ${nota || "Interesado"}`,
+              categoria: "Ventas",
+              creadoPor: (session.user as any).id || "system",
+            },
+          });
+
+          // Si el abono cubre el total, marcar como compra realizada
+          if (pAbono === pValor) {
+            updateData.compraRealizada = true;
+            updateData.fechaCompra = new Date();
+          } else {
+            updateData.compraRealizada = false;
+          }
+        }
       }
 
       const cliente = await prisma.cliente.update({
@@ -59,86 +151,79 @@ export async function PATCH(
         data: updateData,
       });
 
-      // Enviar WhatsApp si se solicita y hay nota
-      if (enviarWhatsappMsg && nota && cliente.telefono) {
-        const whatsappResult = await enviarWhatsApp(cliente.telefono, nota);
-        return NextResponse.json({ ...cliente, whatsappEnviado: whatsappResult.success, whatsappError: whatsappResult.error });
-      }
-
       return NextResponse.json(cliente);
     }
 
-    // ── Paso 3: Registrar pago (conectado a finanzas) ──
+    // ── Paso 3: Registrar pago (conectado a finanzas sin gastos) ──
     if (body.action === "registrar_pago") {
-      const { monto, metodo, notas, registrarGasto, montoGasto, descripcionGasto } = body;
+      const { monto, metodo, notas } = body;
 
       if (!monto || !metodo) {
         return NextResponse.json({ error: "Faltan monto o método de pago" }, { status: 400 });
       }
 
-      // Validar gasto asociado si se solicita
-      if (registrarGasto && montoGasto) {
-        const pGasto = parseFloat(montoGasto);
-        const pPago = parseFloat(monto);
-        if (pGasto > pPago) {
-          return NextResponse.json(
-            { error: "El gasto asociado no puede ser mayor que el monto de la venta" },
-            { status: 400 }
-          );
-        }
+      const nuevoMonto = parseFloat(monto);
+
+      // Obtener el cliente para saber su montoTotal y pagos anteriores
+      const clienteInfo = await prisma.cliente.findUnique({
+        where: { id },
+        include: { pagos: { where: { estado: "COMPLETADO" } } }
+      });
+
+      if (!clienteInfo) {
+        return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+      }
+
+      const totalPrevio = clienteInfo.pagos.reduce((sum, p) => sum + parseFloat(p.monto.toString()), 0);
+      const totalAbonado = totalPrevio + nuevoMonto;
+      const totalEsperado = clienteInfo.montoTotal ? parseFloat(clienteInfo.montoTotal.toString()) : nuevoMonto;
+
+      // Validar que no sobrepase el precio del producto
+      if (clienteInfo.montoTotal && totalAbonado > totalEsperado) {
+        return NextResponse.json(
+          { error: `El pago acumulado ($${totalAbonado.toFixed(2)}) supera el valor total del producto ($${totalEsperado.toFixed(2)})` },
+          { status: 400 }
+        );
       }
 
       // Crear el pago
       const pago = await prisma.pago.create({
         data: {
           clienteId: id,
-          monto: parseFloat(monto),
-          metodo,
+          monto: nuevoMonto,
+          metodo: metodo as MetodoPago,
           estado: "COMPLETADO",
           fechaPago: new Date(),
           notas: notas || null,
         },
       });
 
-      // Obtener el cliente para el nombre
-      const clienteInfo = await prisma.cliente.findUnique({ where: { id } });
-
       // Crear la transacción en finanzas (INGRESO)
       await prisma.transaccion.create({
         data: {
           tipo: "INGRESO",
-          monto: parseFloat(monto),
-          descripcion: `Pago de ${clienteInfo?.nombre || "cliente"} - ${notas || "Activación"}`,
+          monto: nuevoMonto,
+          descripcion: `Pago de ${clienteInfo.nombre} - ${notas || "Abono / Cuota"}`,
           categoria: "Ventas",
           creadoPor: (session.user as any).id || "system",
         },
       });
 
-      // Crear la transacción en finanzas (GASTO) si se especificó un gasto asociado válido
-      if (registrarGasto && montoGasto && parseFloat(montoGasto) > 0) {
-        await prisma.transaccion.create({
-          data: {
-            tipo: "GASTO",
-            monto: parseFloat(montoGasto),
-            descripcion: `Costo asociado a lead ${clienteInfo?.nombre || "cliente"}: ${descripcionGasto || "Gasto de entrega/setup"}`,
-            categoria: "Costos de Venta",
-            creadoPor: (session.user as any).id || "system",
-          },
-        });
-      }
+      // Determinar si es cierre total
+      const esCierreTotal = totalAbonado >= totalEsperado;
 
-      // Actualizar estado del cliente a PAGADO
-      const cliente = await prisma.cliente.update({
+      // Actualizar estado del cliente
+      const clienteActualizado = await prisma.cliente.update({
         where: { id },
         data: {
-          compraRealizada: true,
-          fechaCompra: new Date(),
-          montoTotal: parseFloat(monto),
+          compraRealizada: esCierreTotal,
+          fechaCompra: esCierreTotal ? new Date() : null,
+          montoTotal: totalEsperado,
           estado: EstadoCliente.PAGADO,
         },
       });
 
-      return NextResponse.json({ cliente, pago });
+      return NextResponse.json({ cliente: clienteActualizado, pago });
     }
 
     // ── Paso 3: Registrar nota de cierre (sin pago / sin finanzas) ──
@@ -147,25 +232,42 @@ export async function PATCH(
 
       // Obtener el cliente para conservar su nota anterior si existe
       const clienteInfo = await prisma.cliente.findUnique({ where: { id } });
+      if (!clienteInfo) {
+        return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+      }
 
-      const nuevaNota = notas
-        ? (clienteInfo?.notaReseña ? `${clienteInfo.notaReseña}\n[Cierre]: ${notas}` : notas)
-        : clienteInfo?.notaReseña;
+      let nuevaNota = clienteInfo.notaReseña || "";
+      if (notas && notas.trim()) {
+        const fechaLabel = new Date().toLocaleDateString("es-MX", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const entradaNota = `[Nota Paso 3] (${fechaLabel}): ${notas.trim()}`;
+        nuevaNota = nuevaNota ? `${nuevaNota}\n\n${entradaNota}` : entradaNota;
+      }
 
       const cliente = await prisma.cliente.update({
         where: { id },
         data: {
-          compraRealizada: true,
-          fechaCompra: new Date(),
-          montoTotal: 0,
-          notaReseña: nuevaNota,
-          estado: EstadoCliente.PAGADO,
+          notaReseña: nuevaNota || null,
         },
       });
 
       return NextResponse.json(cliente);
     }
 
+
+    // ── Borrar notas de conversación ──
+    if (body.action === "borrar_notas") {
+      const cliente = await prisma.cliente.update({
+        where: { id },
+        data: { notaReseña: null },
+      });
+      return NextResponse.json(cliente);
+    }
 
     // ── Fallback: Cambio de estado directo (legacy) ──
     const { estado } = body;
@@ -200,3 +302,59 @@ export async function PATCH(
     );
   }
 }
+
+// DELETE: Eliminar cliente y todos sus datos relacionados (pagos, finanzas, avisos, seguimientos)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    // 1. Obtener datos del cliente para localizar transacciones por nombre
+    const cliente = await prisma.cliente.findUnique({ where: { id } });
+    if (!cliente) {
+      return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+    }
+
+    // 2. Eliminar avisos de WhatsApp vinculados al cliente (por nombre en mensaje/título)
+    await prisma.aviso.deleteMany({
+      where: {
+        OR: [
+          { mensaje: { contains: cliente.nombre } },
+          { titulo: { contains: cliente.nombre } },
+        ],
+      },
+    });
+
+    // 3. Eliminar transacciones financieras vinculadas al cliente (por descripción)
+    await prisma.transaccion.deleteMany({
+      where: {
+        descripcion: { contains: cliente.nombre },
+      },
+    });
+
+    // 4. Eliminar pagos (onDelete: Cascade en schema, pero lo hacemos explícito)
+    await prisma.pago.deleteMany({ where: { clienteId: id } });
+
+    // 5. Eliminar seguimientos
+    await prisma.seguimiento.deleteMany({ where: { clienteId: id } });
+
+    // 6. Eliminar el cliente en sí
+    await prisma.cliente.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, message: `Cliente "${cliente.nombre}" eliminado completamente.` });
+  } catch (error: any) {
+    console.error("Error al eliminar cliente:", error);
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
+  }
+}
+

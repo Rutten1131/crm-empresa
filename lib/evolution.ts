@@ -1,63 +1,44 @@
-/**
- * Evolution API WhatsApp Client Utility
- */
+// Evolution API - WhatsApp messaging utility
 
-export async function sendTextMessage(phone: string, message: string): Promise<boolean> {
-  const url = process.env.EVOLUTION_API_URL;
-  const apikey = process.env.EVOLUTION_API_KEY;
-  const instance = process.env.EVOLUTION_INSTANCE;
+const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
+const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+const EVOLUTION_INSTANCE = process.env.EVOLUTION_INSTANCE;
 
-  // Detectar si estamos en un ambiente sin configurar o con credenciales de ejemplo
-  const isDummyConfig =
-    !url ||
-    !apikey ||
-    !instance ||
-    url.includes("tu-evolution-api.com") ||
-    apikey === "tu-api-key" ||
-    instance === "nombre-instancia";
-
-  if (isDummyConfig) {
-    console.log(`[SIMULACIÓN WHATSAPP] Enviando mensaje a ${phone}:`);
-    console.log(`Mensaje: "${message}"`);
-    console.log(`(Simulación exitosa ya que Evolution API no está configurada o usa valores por defecto en .env)`);
-    return true;
+export async function enviarWhatsApp(telefono: string, mensaje: string): Promise<{ success: boolean; error?: string }> {
+  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE) {
+    console.error("Faltan variables de Evolution API");
+    return { success: false, error: "Configuración de Evolution API incompleta" };
   }
 
-  try {
-    // URL estándar de Evolution API para enviar texto
-    // Ej: https://api.tu-evolution.com/message/sendText/mi-instancia
-    const endpoint = `${url.replace(/\/$/, "")}/message/sendText/${instance}`;
+  // Normalizar teléfono: quitar +, espacios, guiones
+  const numero = telefono.replace(/[^\d]/g, "");
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": apikey,
-      },
-      body: JSON.stringify({
-        number: phone,
-        options: {
-          delay: 1200,
-          presence: "composing",
-          linkPreview: true
+  try {
+    const response = await fetch(
+      `${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: EVOLUTION_API_KEY,
         },
-        textMessage: {
-          text: message
-        }
-      }),
-    });
+        body: JSON.stringify({
+          number: numero,
+          text: mensaje,
+        }),
+      }
+    );
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error de Evolution API al enviar mensaje a ${phone}: Status ${response.status} - ${errorText}`);
-      return false;
+      const errorBody = await response.text();
+      console.error("Error Evolution API:", response.status, errorBody);
+      return { success: false, error: `Error ${response.status}: ${errorBody}` };
     }
 
     const data = await response.json();
-    console.log(`Mensaje enviado con éxito vía Evolution API a ${phone}. ID:`, data?.key?.id || "N/A");
-    return true;
-  } catch (error) {
-    console.error(`Error al conectar con Evolution API para enviar mensaje a ${phone}:`, error);
-    return false;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error enviando WhatsApp:", err);
+    return { success: false, error: err.message };
   }
 }

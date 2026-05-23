@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, ShieldAlert, MessageSquare, ExternalLink, Calendar, Users } from "lucide-react";
+import { Search, ShieldAlert, MessageSquare, ExternalLink, Calendar, Users, UserPlus, AlertTriangle } from "lucide-react";
 import type { Cliente, Seguimiento } from "@prisma/client";
 import { EstadoCliente, EstadoSeguimiento } from "./enums";
 import ClientePanel from "@/components/ClientePanel";
@@ -16,6 +16,17 @@ export default function ClientesPage() {
   const [search, setSearch] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState<string>("");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+
+  // States for manual lead creation
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [newNombre, setNewNombre] = useState("");
+  const [newTelefono, setNewTelefono] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newNombreNegocio, setNewNombreNegocio] = useState("");
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const fetchClientes = useCallback(async () => {
     try {
@@ -36,6 +47,61 @@ export default function ClientesPage() {
       setLoading(false);
     }
   }, [estadoFiltro, search]);
+
+  const handleCrearCliente = async (options?: { force?: boolean; reactivate?: boolean }) => {
+    setModalLoading(true);
+    setModalError(null);
+
+    try {
+      const res = await fetch("/api/clientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: newNombre,
+          telefono: newTelefono,
+          email: newEmail,
+          nombre_negocio: newNombreNegocio,
+          force: options?.force || false,
+          reactivate: options?.reactivate || false,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al procesar la solicitud");
+      }
+
+      const data = await res.json();
+
+      if (data.duplicate) {
+        setDuplicateInfo(data.existingCliente);
+        setShowDuplicateModal(true);
+        setShowCreateModal(false);
+      } else {
+        // Creado o reactivado con éxito
+        setNewNombre("");
+        setNewTelefono("");
+        setNewEmail("");
+        setNewNombreNegocio("");
+        setDuplicateInfo(null);
+        setShowCreateModal(false);
+        setShowDuplicateModal(false);
+
+        // Recargar lista de clientes
+        const updatedClientes = await fetchClientes();
+        
+        // Abrir automáticamente el panel del cliente
+        if (data.cliente) {
+          const clientInList = updatedClientes?.find((c: any) => c.id === data.cliente.id);
+          setSelectedCliente(clientInList || data.cliente);
+        }
+      }
+    } catch (err: any) {
+      setModalError(err.message || "Ocurrió un error inesperado");
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Debounce de búsqueda simple (300ms)
@@ -86,15 +152,27 @@ export default function ClientesPage() {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
-      {/* Title */}
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tighter text-zinc-100 flex items-center gap-3">
-          <Users size={28} className="text-zinc-400" />
-          Administración de Clientes
-        </h1>
-        <p className="text-zinc-500 text-sm mt-1">
-          Historial de leads, embudo de conversión y estado de seguimientos automáticos.
-        </p>
+      {/* Title and Action Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tighter text-zinc-100 flex items-center gap-3">
+            <Users size={28} className="text-zinc-400" />
+            Administración de Clientes
+          </h1>
+          <p className="text-zinc-500 text-sm mt-1">
+            Historial de leads, embudo de conversión y estado de seguimientos automáticos.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setShowCreateModal(true);
+            setModalError(null);
+          }}
+          className="px-5 py-3 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 font-bold text-xs rounded-2xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2 shadow shrink-0"
+        >
+          <UserPlus size={16} />
+          Nuevo Lead
+        </button>
       </div>
 
       {/* Buscador y Filtros */}
@@ -155,6 +233,9 @@ export default function ClientesPage() {
                   Estado
                 </th>
                 <th className="py-4 px-6 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                  Plan
+                </th>
+                <th className="py-4 px-6 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                   Ingreso
                 </th>
                 <th className="py-4 px-6 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
@@ -169,14 +250,14 @@ export default function ClientesPage() {
               {loading ? (
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="py-5 px-6">
+                    <td colSpan={7} className="py-5 px-6">
                       <div className="h-5 bg-zinc-900 rounded-lg w-full" />
                     </td>
                   </tr>
                 ))
               ) : clientes.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 px-6 text-center text-sm text-zinc-500">
+                  <td colSpan={7} className="py-12 px-6 text-center text-sm text-zinc-500">
                     No se encontraron clientes.
                   </td>
                 </tr>
@@ -238,6 +319,21 @@ export default function ClientesPage() {
                         </span>
                       </td>
 
+                      {/* Plan */}
+                      <td className="py-4 px-6">
+                        {c.plan ? (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase border ${
+                            c.plan === "BASIC" ? "bg-zinc-800 text-zinc-300 border-zinc-700" :
+                            c.plan === "BUSINESS" ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20" :
+                            "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                          }`}>
+                            {c.plan}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600 text-xs font-semibold">-</span>
+                        )}
+                      </td>
+
                       {/* Fecha de ingreso */}
                       <td className="py-4 px-6 text-xs text-zinc-500">
                         {fechaIngresoFormatted}
@@ -292,7 +388,199 @@ export default function ClientesPage() {
             setSelectedCliente(foundInList || updatedCliente);
           }
         }}
+        onClienteDeleted={(clienteId) => {
+          setClientes((prev) => prev.filter((c) => c.id !== clienteId));
+          setSelectedCliente(null);
+        }}
       />
+
+
+      {/* Modal: Crear Lead */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm transition-opacity" 
+            onClick={() => setShowCreateModal(false)}
+          />
+          {/* Modal Card */}
+          <div className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl z-10 animate-slide-in space-y-6">
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+                <UserPlus className="text-zinc-400" size={20} />
+                Registrar Nuevo Lead
+              </h3>
+              <p className="text-xs text-zinc-500">Completa los datos del lead para agregarlo a tu embudo.</p>
+            </div>
+
+            {modalError && (
+              <div className="p-3 bg-red-500/10 text-red-400 text-xs font-semibold rounded-xl border border-red-500/20">
+                {modalError}
+              </div>
+            )}
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              handleCrearCliente();
+            }} className="space-y-4">
+              {/* Nombre */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Nombre del Contacto *</label>
+                <input
+                  type="text"
+                  required
+                  value={newNombre}
+                  onChange={(e) => setNewNombre(e.target.value)}
+                  placeholder="Ej: Juan Pérez"
+                  className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-xl text-xs text-zinc-200 placeholder-zinc-650 outline-none transition-colors"
+                />
+              </div>
+
+              {/* Teléfono */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Teléfono / WhatsApp *</label>
+                <input
+                  type="text"
+                  required
+                  value={newTelefono}
+                  onChange={(e) => setNewTelefono(e.target.value)}
+                  placeholder="Ej: +521234567890"
+                  className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-xl text-xs text-zinc-200 placeholder-zinc-650 outline-none transition-colors font-mono"
+                />
+              </div>
+
+              {/* Email */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Email (Opcional)</label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="Ej: juan@empresa.com"
+                  className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-xl text-xs text-zinc-200 placeholder-zinc-650 outline-none transition-colors"
+                />
+              </div>
+
+              {/* Nombre del Negocio */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Nombre del Negocio (Opcional)</label>
+                <input
+                  type="text"
+                  value={newNombreNegocio}
+                  onChange={(e) => setNewNombreNegocio(e.target.value)}
+                  placeholder="Ej: Taquería Los Primos"
+                  className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-xl text-xs text-zinc-200 placeholder-zinc-650 outline-none transition-colors"
+                />
+              </div>
+
+              {/* Acciones */}
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 py-2.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold rounded-xl border border-zinc-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalLoading}
+                  className="flex-1 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-950 text-xs font-bold rounded-xl disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  {modalLoading ? "Guardando..." : "Crear Lead"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Advertencia de Duplicado */}
+      {showDuplicateModal && duplicateInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-zinc-950/85 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowDuplicateModal(false)}
+          />
+          {/* Modal Card */}
+          <div className="relative w-full max-w-md bg-zinc-900 border border-amber-500/20 rounded-3xl p-6 shadow-2xl z-10 space-y-6">
+            
+            {/* Header Alert */}
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-500/10 rounded-2xl text-amber-400 border border-amber-500/20 shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-zinc-100 tracking-tight">
+                  Lead Duplicado Detectado
+                </h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Ya existe un registro con el teléfono <span className="font-mono text-zinc-200 font-bold">{newTelefono}</span> en tu base de datos:
+                </p>
+              </div>
+            </div>
+
+            {/* Info Box */}
+            <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-2xl space-y-2.5">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-500">Nombre registrado:</span>
+                <span className="font-bold text-zinc-200">{duplicateInfo.nombre}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-500">Estado actual:</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase border ${
+                  duplicateInfo.estado === EstadoCliente.PENDIENTE ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                  duplicateInfo.estado === EstadoCliente.ENVIADO ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                  duplicateInfo.estado === EstadoCliente.PAGADO ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                  "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                }`}>
+                  {duplicateInfo.estado === EstadoCliente.PENDIENTE ? "Nuevo" :
+                   duplicateInfo.estado === EstadoCliente.ENVIADO ? "Seguimiento" :
+                   duplicateInfo.estado === EstadoCliente.PAGADO ? "Convertido" : "Cerrado"}
+                </span>
+              </div>
+            </div>
+
+            {/* Warning Message */}
+            <p className="text-[11px] text-zinc-500 leading-normal text-center italic">
+              ¿Qué acción deseas tomar con este lead?
+            </p>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={modalLoading}
+                onClick={() => handleCrearCliente({ reactivate: true })}
+                className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-amber-950/20"
+              >
+                Reactivar y Ver Lead Existente
+              </button>
+
+              <button
+                type="button"
+                disabled={modalLoading}
+                onClick={() => handleCrearCliente({ force: true })}
+                className="w-full py-2.5 px-4 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 hover:text-zinc-150 text-xs font-semibold rounded-2xl border border-zinc-750 transition-all cursor-pointer active:scale-[0.98]"
+              >
+                Crear como un Duplicado Nuevo
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDuplicateModal(false);
+                  setShowCreateModal(true);
+                }}
+                className="w-full py-2.5 px-4 bg-zinc-950 hover:bg-zinc-900 text-zinc-500 hover:text-zinc-400 text-xs font-semibold rounded-2xl border border-zinc-850 transition-all cursor-pointer"
+              >
+                Corregir Teléfono / Regresar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

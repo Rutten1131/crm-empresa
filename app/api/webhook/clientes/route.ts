@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { EstadoCliente, EstadoSeguimiento } from "@prisma/client";
+import { cancelarAvisosRecontactoPendientes } from "@/lib/recontactos";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { nombre, telefono, email } = body;
+    const { nombre, telefono, email, plan } = body;
 
     if (!nombre || !telefono) {
       return NextResponse.json(
@@ -29,6 +30,14 @@ export async function POST(request: NextRequest) {
     const clienteExistente = await prisma.cliente.findFirst({
       where: { telefono: telefonoNormalizado },
     });
+
+    let clientPlan = null;
+    if (plan) {
+      const pUpper = plan.toUpperCase();
+      if (pUpper === "BASIC") clientPlan = "BASIC";
+      else if (pUpper === "BUSINESS") clientPlan = "BUSINESS";
+      else if (pUpper === "CATALOG") clientPlan = "CATALOG";
+    }
 
     const hoy = new Date();
     const fechaDia3 = new Date(hoy);
@@ -52,6 +61,7 @@ export async function POST(request: NextRequest) {
           nombre,
           email: email || clienteExistente.email,
           estado: EstadoCliente.PENDIENTE,
+          plan: clientPlan ? (clientPlan as any) : undefined,
         },
       });
 
@@ -66,6 +76,9 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Cancelar avisos de recontacto anteriores pendientes (se recrearán al marcar demo)
+      await cancelarAvisosRecontactoPendientes(nombre);
+
       console.log(`Cliente existente reactivado: ${nombre} (${telefonoNormalizado})`);
     } else {
       // Crear cliente nuevo
@@ -75,6 +88,7 @@ export async function POST(request: NextRequest) {
           telefono: telefonoNormalizado,
           email: email || null,
           estado: EstadoCliente.PENDIENTE,
+          plan: clientPlan ? (clientPlan as any) : null,
         },
       });
 

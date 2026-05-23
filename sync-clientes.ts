@@ -39,8 +39,21 @@ async function sincronizarClientes() {
         where: { telefono: telefonoNormalizado },
       });
 
+      let clientPlan = null;
+      if (c.plan) {
+        const pUpper = c.plan.toUpperCase();
+        if (pUpper === "BASIC") clientPlan = "BASIC";
+        else if (pUpper === "BUSINESS") clientPlan = "BUSINESS";
+        else if (pUpper === "CATALOG") clientPlan = "CATALOG";
+      }
+
       if (clienteExistente) {
-        // Actualizar si es necesario
+        if (clientPlan && !clienteExistente.plan) {
+          await prisma.cliente.update({
+            where: { id: clienteExistente.id },
+            data: { plan: clientPlan as any },
+          });
+        }
         actualizados++;
       } else {
         // Crear cliente
@@ -52,6 +65,7 @@ async function sincronizarClientes() {
             estado: EstadoCliente.PENDIENTE,
             // Guardamos la fecha original si viene, sino la de hoy
             fechaIngreso: c.fecha_registro ? new Date(c.fecha_registro) : new Date(),
+            plan: clientPlan as any,
           },
         });
 

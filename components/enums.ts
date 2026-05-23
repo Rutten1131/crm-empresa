@@ -14,5 +14,16 @@ export enum EstadoSeguimientoEnum {
   PENDIENTE = "PENDIENTE",
   ENVIADO = "ENVIADO",
   OMITIDO = "OMITIDO",
-  // Add other enum values as needed
+}
+
+export enum DemoReseñaEnum {
+  INTERESADO = "INTERESADO",
+  NO_INTERESADO = "NO_INTERESADO",
+  VOLVER_A_PRESENTAR = "VOLVER_A_PRESENTAR",
+}
+
+export enum MetodoPagoEnum {
+  EFECTIVO = "EFECTIVO",
+  TRANSFERENCIA = "TRANSFERENCIA",
+  TARJETA = "TARJETA",
 }

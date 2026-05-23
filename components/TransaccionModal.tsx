@@ -18,14 +18,10 @@ interface TransaccionModalProps {
   onSuccess: () => void;
 }
 
-const CATEGORIAS_INGRESO = ["Ventas", "Suscripciones", "Consultoría", "Servicios", "Inversiones", "Otros"];
-const CATEGORIAS_GASTO = ["Marketing", "Herramientas/Software", "Sueldos", "Servicios Básicos", "Infraestructura", "Impuestos", "Otros"];
-
 export default function TransaccionModal({ isOpen, onClose, onSuccess }: TransaccionModalProps) {
   const [tipo, setTipo] = useState<keyof typeof TipoTransaccionEnum>("INGRESO");
   const [monto, setMonto] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [categoria, setCategoria] = useState(CATEGORIAS_INGRESO[0]);
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -34,12 +30,6 @@ export default function TransaccionModal({ isOpen, onClose, onSuccess }: Transac
 
   const handleTipoChange = (nuevoTipo: keyof typeof TipoTransaccionEnum) => {
     setTipo(nuevoTipo);
-    // Cambiar categoría por defecto según el tipo
-    if (nuevoTipo === "INGRESO") {
-      setCategoria(CATEGORIAS_INGRESO[0]);
-    } else {
-      setCategoria(CATEGORIAS_GASTO[0]);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,7 +47,7 @@ export default function TransaccionModal({ isOpen, onClose, onSuccess }: Transac
           tipo,
           monto: parseFloat(monto),
           descripcion,
-          categoria,
+          categoria: "GENERAL",
           fecha: new Date(fecha).toISOString(),
         }),
       });
@@ -81,7 +71,6 @@ export default function TransaccionModal({ isOpen, onClose, onSuccess }: Transac
     }
   };
 
-  const categorias = tipo === TipoTransaccionEnum.INGRESO ? CATEGORIAS_INGRESO : CATEGORIAS_GASTO;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
@@ -173,25 +162,6 @@ export default function TransaccionModal({ isOpen, onClose, onSuccess }: Transac
               placeholder="Ej. Cobro cliente Aquatech"
               className="w-full px-4 py-3 bg-zinc-950 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-2xl text-sm text-zinc-100 placeholder-zinc-700 outline-none transition-colors"
             />
-          </div>
-
-          {/* Categoría */}
-          <div className="space-y-2">
-            <label htmlFor="categoria" className="text-xs font-semibold text-zinc-400">
-              Categoría
-            </label>
-            <select
-              id="categoria"
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              className="w-full px-4 py-3 bg-zinc-950 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-2xl text-sm text-zinc-200 outline-none transition-colors appearance-none cursor-pointer"
-            >
-              {categorias.map((c) => (
-                <option key={c} value={c} className="bg-zinc-950 text-zinc-200">
-                  {c}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Fecha */}

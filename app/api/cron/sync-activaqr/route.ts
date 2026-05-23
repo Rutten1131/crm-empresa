@@ -35,7 +35,22 @@ export async function GET() {
         where: { telefono: telefonoNormalizado },
       });
 
+      let clientPlan = null;
+      if (c.plan) {
+        const pUpper = c.plan.toUpperCase();
+        if (pUpper === "BASIC") clientPlan = "BASIC";
+        else if (pUpper === "BUSINESS") clientPlan = "BUSINESS";
+        else if (pUpper === "CATALOG") clientPlan = "CATALOG";
+      }
+
       if (clienteExistente) {
+        // Siempre actualizar el plan cuando ActivaQR proporciona uno válido
+        if (clientPlan) {
+          await prisma.cliente.update({
+            where: { id: clienteExistente.id },
+            data: { plan: clientPlan as any },
+          });
+        }
         actualizados++;
       } else {
         const nuevoCliente = await prisma.cliente.create({
@@ -45,6 +60,7 @@ export async function GET() {
             email: c.email || null,
             estado: EstadoCliente.PENDIENTE,
             fechaIngreso: c.fecha_registro || c.created_at || new Date(),
+            plan: clientPlan as any,
           },
         });
 

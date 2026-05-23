@@ -33,6 +33,20 @@ model Cliente {
   fechaIngreso    DateTime        @default(now())
   seguimientos    Seguimiento[]
   updatedAt       DateTime        @updatedAt
+  
+  // Plan y precio del producto
+  plan            Plan?           // Plan de ActivaQR (basic, business, catalog)
+  
+  // Nuevo flujo de seguimiento manual
+  demoPresentada  Boolean         @default(false)
+  fechaDemo       DateTime?
+  demoReseña      DemoReseña?
+  fechaReseña     DateTime?
+  notaReseña      String?
+  compraRealizada Boolean         @default(false)
+  fechaCompra     DateTime?
+  montoTotal      Decimal?        @db.Decimal(10,2)
+  pagos           Pago[]
 }
 
 enum EstadoCliente {
@@ -40,6 +54,18 @@ enum EstadoCliente {
   ENVIADO
   PAGADO
   CERRADO
+}
+
+enum Plan {
+  BASIC
+  BUSINESS
+  CATALOG
+}
+
+enum DemoReseña {
+  INTERESADO
+  NO_INTERESADO
+  VOLVER_A_PRESENTAR
 }
 
 model Seguimiento {
@@ -96,4 +122,29 @@ enum EstadoAviso {
 model Configuracion {
   key   String @id
   value String @db.Text
+}
+
+model Pago {
+  id          String          @id @default(cuid())
+  clienteId   String
+  cliente     Cliente         @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  monto       Decimal         @db.Decimal(10,2)
+  metodo      MetodoPago
+  estado      EstadoPago      @default(PENDIENTE)
+  fechaPago   DateTime?       // fecha real del pago
+  notas       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+}
+
+enum EstadoPago {
+  PENDIENTE
+  COMPLETADO
+  CANCELADO
 }

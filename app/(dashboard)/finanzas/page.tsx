@@ -6,6 +6,8 @@ import { Plus, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import FinanzasChart from "@/components/FinanzasChart";
 import FinanzasTable from "@/components/FinanzasTable";
 import TransaccionModal from "@/components/TransaccionModal";
+import FinanzasCalendar from "@/components/FinanzasCalendar";
+import ResumenTransaccionesModal from "@/components/ResumenTransaccionesModal";
 
 export default function FinanzasPage() {
   const { data: session } = useSession();
@@ -13,6 +15,56 @@ export default function FinanzasPage() {
   const [resumen, setResumen] = useState({ ingresos: 0, gastos: 0, neto: 0 });
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedTitle, setSelectedTitle] = useState("");
+  const [selectedTransacciones, setSelectedTransacciones] = useState<any[]>([]);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+
+  const handleIngresosClick = () => {
+    const hoy = new Date();
+    const currentMonthTrans = transacciones.filter((t) => {
+      const tDate = new Date(t.fecha);
+      return (
+        tDate.getFullYear() === hoy.getFullYear() &&
+        tDate.getMonth() === hoy.getMonth() &&
+        t.tipo === "INGRESO"
+      );
+    });
+    if (currentMonthTrans.length === 0) return;
+    const monthLabel = hoy.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
+    setSelectedTitle(`Detalle de Ingresos - ${monthLabel}`);
+    setSelectedTransacciones(currentMonthTrans);
+    setIsSummaryModalOpen(true);
+  };
+
+  const handleGastosClick = () => {
+    const hoy = new Date();
+    const currentMonthTrans = transacciones.filter((t) => {
+      const tDate = new Date(t.fecha);
+      return (
+        tDate.getFullYear() === hoy.getFullYear() &&
+        tDate.getMonth() === hoy.getMonth() &&
+        t.tipo === "GASTO"
+      );
+    });
+    if (currentMonthTrans.length === 0) return;
+    const monthLabel = hoy.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
+    setSelectedTitle(`Detalle de Gastos - ${monthLabel}`);
+    setSelectedTransacciones(currentMonthTrans);
+    setIsSummaryModalOpen(true);
+  };
+
+  const handleNetoClick = () => {
+    const hoy = new Date();
+    const currentMonthTrans = transacciones.filter((t) => {
+      const tDate = new Date(t.fecha);
+      return tDate.getFullYear() === hoy.getFullYear() && tDate.getMonth() === hoy.getMonth();
+    });
+    if (currentMonthTrans.length === 0) return;
+    const monthLabel = hoy.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
+    setSelectedTitle(`Movimientos del Mes - ${monthLabel}`);
+    setSelectedTransacciones(currentMonthTrans);
+    setIsSummaryModalOpen(true);
+  };
 
   // Filtros
   const [filtros, setFiltros] = useState({
@@ -76,7 +128,12 @@ export default function FinanzasPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Card Ingresos */}
-        <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden group">
+        <div
+          onClick={handleIngresosClick}
+          className={`bg-zinc-950 border border-zinc-900 hover:border-zinc-800 hover:bg-zinc-900/20 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden group transition-all duration-200 active:scale-[0.98] ${
+            resumen.ingresos > 0 ? "cursor-pointer" : "opacity-80"
+          }`}
+        >
           <div className="space-y-2">
             <span className="text-xs font-semibold text-zinc-500 block">Total Ingresos (Mes)</span>
             <div className="flex items-baseline gap-1">
@@ -91,7 +148,12 @@ export default function FinanzasPage() {
         </div>
 
         {/* Card Gastos */}
-        <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden group">
+        <div
+          onClick={handleGastosClick}
+          className={`bg-zinc-950 border border-zinc-900 hover:border-zinc-800 hover:bg-zinc-900/20 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden group transition-all duration-200 active:scale-[0.98] ${
+            resumen.gastos > 0 ? "cursor-pointer" : "opacity-80"
+          }`}
+        >
           <div className="space-y-2">
             <span className="text-xs font-semibold text-zinc-500 block">Total Gastos (Mes)</span>
             <div className="flex items-baseline gap-1">
@@ -106,7 +168,12 @@ export default function FinanzasPage() {
         </div>
 
         {/* Card Neto */}
-        <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden group">
+        <div
+          onClick={handleNetoClick}
+          className={`bg-zinc-950 border border-zinc-900 hover:border-zinc-800 hover:bg-zinc-900/20 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden group transition-all duration-200 active:scale-[0.98] ${
+            transacciones.length > 0 ? "cursor-pointer" : "opacity-80"
+          }`}
+        >
           <div className="space-y-2">
             <span className="text-xs font-semibold text-zinc-500 block">Balance Neto (Mes)</span>
             <div className="flex items-baseline gap-1">
@@ -136,6 +203,9 @@ export default function FinanzasPage() {
 
       {/* Grid: Graph & Table */}
       <div className="space-y-8">
+        {/* Calendar Component */}
+        <FinanzasCalendar transacciones={transacciones} />
+
         {/* Graph Component */}
         <FinanzasChart transacciones={transacciones} />
 
@@ -162,6 +232,14 @@ export default function FinanzasPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={fetchFinanzas}
+      />
+
+      {/* Modal de Resumen de Transacciones */}
+      <ResumenTransaccionesModal
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
+        title={selectedTitle}
+        transacciones={selectedTransacciones}
       />
     </div>
   );
