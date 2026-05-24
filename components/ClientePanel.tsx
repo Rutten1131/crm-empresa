@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, Calendar, CheckCircle2, Clock,
   Send, ThumbsUp, ThumbsDown, RefreshCw, DollarSign,
-  MessageSquare, Presentation, FileText, CreditCard, Trash2, AlertTriangle, Brain
+  MessageSquare, Presentation, FileText, CreditCard, Trash2, AlertTriangle, Brain, Bot, User
 } from "lucide-react";
 import type { Cliente, Seguimiento } from "@prisma/client";
 import { EstadoClienteEnum, DemoReseñaEnum, MetodoPagoEnum } from "./enums";
+import MicrophoneButton from "./MicrophoneButton";
 
 interface ClientePanelProps {
   cliente: Cliente | null;
@@ -35,6 +36,10 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
 
   // Historial de pagos
   const [pagosList, setPagosList] = useState<any[]>([]);
+  
+  // Historial de seguimientos/notas
+  const [seguimientosList, setSeguimientosList] = useState<any[]>([]);
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
   // Delete states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -51,6 +56,9 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
   
   // DeepSeek analysis
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [botResponse, setBotResponse] = useState<string>("");
+  const [showChat, setShowChat] = useState(false);
+  const [conversation, setConversation] = useState<Array<{ role: string; content: string }>>([]);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   // Feedback
@@ -66,6 +74,19 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
       }
     } catch (err) {
       console.error("Error al cargar pagos:", err);
+    }
+  };
+
+  const fetchSeguimientos = async () => {
+    if (!cliente?.id) return;
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}/seguimientos`);
+      if (res.ok) {
+        const data = await res.json();
+        setSeguimientosList(data);
+      }
+    } catch (err) {
+      console.error("Error al cargar seguimientos:", err);
     }
   };
 
@@ -86,8 +107,10 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
 
     if (cliente?.id) {
       fetchPagos();
+      fetchSeguimientos();
     } else {
       setPagosList([]);
+      setSeguimientosList([]);
     }
   }, [cliente?.id]);
 
@@ -185,6 +208,11 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
           ? "Se marcó para volver a presentar"
           : "✅ Cliente interesado registrado";
 
+      // Si el bot tiene una respuesta, agregarla al mensaje
+      if (data.botResponse) {
+        msg = `${msg}\n\n🤖 Bot: ${data.botResponse}`;
+      }
+
       setFeedback({ type: "success", msg });
       setNota("");
       setResultadoPaso2(null);
@@ -271,13 +299,52 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
       if (!res.ok) throw new Error("Error al registrar nota de cierre");
       const updatedData = await res.json();
 
-      setFeedback({ type: "success", msg: "✅ Nota de cierre registrada correctamente" });
+      let msg = "✅ Nota de cierre registrada correctamente";
+      // Si el bot tiene una respuesta, agregarla al mensaje
+      if (updatedData.botResponse) {
+        msg = `${msg}\n\n🤖 Bot: ${updatedData.botResponse}`;
+      }
+
+      setFeedback({ type: "success", msg });
       setNotaPago("");
       onStatusChangeSuccess(updatedData);
     } catch (err) {
       setFeedback({ type: "error", msg: "Error al registrar nota de cierre" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNotaChange = (value: string) => {
+    setNota(value);
+  };
+
+  const handleAnalyzeNota = async () => {
+    if (!nota.trim() || !cliente?.id) return;
+    setLoadingAnalysis(true);
+    try {
+      const res = await fetch("/api/deepseek/analyze-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clienteId: cliente.id, nota: nota }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.analysis && data.analysis.response) {
+          setBotResponse(data.analysis.response);
+          setShowChat(true);
+          // Guardar la conversación
+          setConversation(prev => [
+            ...prev,
+            { role: "user", content: nota },
+            { role: "assistant", content: data.analysis.response }
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error("Error al analizar nota:", err);
+    } finally {
+      setLoadingAnalysis(false);
     }
   };
 
@@ -360,7 +427,14 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
       });
       if (!res.ok) throw new Error("Error al agregar nota adicional");
       const updated = await res.json();
-      setFeedback({ type: "success", msg: "✅ Nota agregada correctamente" });
+
+      let msg = "✅ Nota agregada correctamente";
+      // Si el bot tiene una respuesta, agregarla al mensaje
+      if (updated.botResponse) {
+        msg = `${msg}\n\n🤖 Bot: ${updated.botResponse}`;
+      }
+
+      setFeedback({ type: "success", msg });
       setNotaAdicional("");
       onStatusChangeSuccess(updated);
     } catch (err) {
@@ -385,7 +459,14 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
       });
       if (!res.ok) throw new Error("Error al guardar notas iniciales");
       const updated = await res.json();
-      setFeedback({ type: "success", msg: "✅ Notas iniciales guardadas correctamente" });
+
+      let msg = "✅ Notas iniciales guardadas correctamente";
+      // Si el bot tiene una respuesta, agregarla al mensaje
+      if (updated.botResponse) {
+        msg = `${msg}\n\n🤖 Bot: ${updated.botResponse}`;
+      }
+
+      setFeedback({ type: "success", msg });
       setNotasInicialesCRM("");
       onStatusChangeSuccess(updated);
     } catch (err) {
@@ -565,13 +646,21 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                     <p className="text-sm text-zinc-400 leading-relaxed">
                       Agrega las notas iniciales sobre este posible cliente antes de presentar la demo.
                     </p>
-                    <textarea
-                      value={notasInicialesCRM}
-                      onChange={(e) => setNotasInicialesCRM(e.target.value)}
-                      placeholder="Ej: Cliente interesado en sistema CRM, tiene 20 empleados, busca automatización de ventas..."
-                      rows={4}
-                      className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
-                    />
+                    <div className="relative">
+                      <textarea
+                        value={notasInicialesCRM}
+                        onChange={(e) => setNotasInicialesCRM(e.target.value)}
+                        placeholder="Ej: Cliente interesado en sistema CRM, tiene 20 empleados, busca automatización de ventas..."
+                        rows={4}
+                        className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 pr-12 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
+                      />
+                      <div className="absolute bottom-3 right-3">
+                        <MicrophoneButton
+                          onTranscript={(text) => setNotasInicialesCRM(prev => prev + (prev ? " " : "") + text)}
+                          disabled={loadingNotasIniciales}
+                        />
+                      </div>
+                    </div>
                     <button
                       onClick={handleGuardarNotasInicialesCRM}
                       disabled={loadingNotasIniciales || !notasInicialesCRM.trim()}
@@ -819,19 +908,67 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                     <label className="text-xs font-semibold text-zinc-400">
                       {resultadoPaso2 === DemoReseñaEnum.NO_INTERESADO ? "Razón del cierre (opcional)" : "Nota / Resumen de la conversación (opcional)"}
                     </label>
-                    <textarea
-                      value={nota}
-                      onChange={(e) => setNota(e.target.value)}
-                      placeholder={
-                        resultadoPaso2 === DemoReseñaEnum.INTERESADO
-                          ? "Ej: Le encantó el catálogo móvil, solicita instalarlo hoy mismo..."
-                          : resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR
-                            ? "Ej: El gerente no estuvo presente, agendamos para el jueves..."
-                            : "Ej: Indica que ya tiene un sistema similar contratado..."
-                      }
-                      rows={3}
-                      className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-650 outline-none transition-colors resize-none"
-                    />
+                    <div className="relative">
+                      <textarea
+                        value={nota}
+                        onChange={(e) => handleNotaChange(e.target.value)}
+                        placeholder={
+                          resultadoPaso2 === DemoReseñaEnum.INTERESADO
+                            ? "Ej: Le encantó el catálogo móvil, solicita instalarlo hoy mismo..."
+                            : resultadoPaso2 === DemoReseñaEnum.VOLVER_A_PRESENTAR
+                              ? "Ej: El gerente no estuvo presente, agendamos para el jueves..."
+                              : "Ej: Indica que ya tiene un sistema similar contratado..."
+                        }
+                        rows={3}
+                        className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 pr-12 text-sm text-zinc-200 placeholder-zinc-650 outline-none transition-colors resize-none"
+                      />
+                      <div className="absolute bottom-3 right-3">
+                        <MicrophoneButton
+                          onTranscript={(text) => setNota(prev => prev + (prev ? " " : "") + text)}
+                          disabled={loading}
+                        />
+                      </div>
+                      {/* Chat interactivo del bot */}
+                      {showChat && conversation.length > 0 && (
+                        <div className="mt-2 bg-zinc-950 border border-zinc-850 rounded-xl p-3 animate-fade-in max-h-60 overflow-y-auto">
+                          {conversation.map((msg, idx) => (
+                            <div key={idx} className={`flex items-start gap-2 mb-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center border flex-shrink-0 ${
+                                msg.role === "user" 
+                                  ? "bg-zinc-800 text-zinc-400 border-zinc-700" 
+                                  : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                              }`}>
+                                {msg.role === "user" ? <User size={16} /> : <Bot size={16} />}
+                              </div>
+                              <div className={`flex-1 max-w-[80%] ${msg.role === "user" ? "text-right" : ""}`}>
+                                <p className={`text-xs leading-relaxed ${
+                                  msg.role === "user" 
+                                    ? "bg-zinc-800 text-zinc-200 rounded-xl px-3 py-2" 
+                                    : "text-zinc-300"
+                                }`}>{msg.content}</p>
+                              </div>
+                            </div>
+                          ))}
+                          {loadingAnalysis && (
+                            <div className="flex items-center gap-2 text-zinc-500">
+                              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+                              <span className="text-[10px]">Analizando...</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {/* Botón para analizar nota */}
+                      {nota.trim() && (
+                        <button
+                          type="button"
+                          onClick={handleAnalyzeNota}
+                          disabled={loadingAnalysis}
+                          className="mt-2 w-full py-2 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2"
+                        >
+                          {loadingAnalysis ? "Analizando..." : "Analizar nota con IA"}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Toggle WhatsApp removed as requested - Alerts are internal only */}
@@ -1058,13 +1195,21 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                       {/* Solo registrar nota */}
                       <div className="space-y-2">
                         <label className="text-xs font-semibold text-zinc-400">Nota de Cierre / Conclusión</label>
-                        <textarea
-                          value={notaPago}
-                          onChange={(e) => setNotaPago(e.target.value)}
-                          placeholder="Escribe los detalles o notas finales por las cuales se concluye este lead..."
-                          rows={4}
-                          className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
-                        />
+                        <div className="relative">
+                          <textarea
+                            value={notaPago}
+                            onChange={(e) => setNotaPago(e.target.value)}
+                            placeholder="Escribe los detalles o notas finales por las cuales se concluye este lead..."
+                            rows={4}
+                            className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-600 rounded-xl px-4 py-3 pr-12 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
+                          />
+                          <div className="absolute bottom-3 right-3">
+                            <MicrophoneButton
+                              onTranscript={(text) => setNotaPago(prev => prev + (prev ? " " : "") + text)}
+                              disabled={loading}
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       {/* Botón Nota */}
@@ -1117,13 +1262,21 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                   Agregar Nota Adicional
                 </h3>
                 <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-4 space-y-3">
-                  <textarea
-                    value={notaAdicional}
-                    onChange={(e) => setNotaAdicional(e.target.value)}
-                    placeholder="Escribe una nota adicional sobre este cliente..."
-                    rows={3}
-                    className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
-                  />
+                  <div className="relative">
+                    <textarea
+                      value={notaAdicional}
+                      onChange={(e) => setNotaAdicional(e.target.value)}
+                      placeholder="Escribe una nota adicional sobre este cliente..."
+                      rows={3}
+                      className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 focus:border-zinc-650 rounded-xl px-4 py-3 pr-12 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none"
+                    />
+                    <div className="absolute bottom-3 right-3">
+                      <MicrophoneButton
+                        onTranscript={(text) => setNotaAdicional(prev => prev + (prev ? " " : "") + text)}
+                        disabled={loadingNotaAdicional}
+                      />
+                    </div>
+                  </div>
                   <button
                     onClick={handleAgregarNotaAdicional}
                     disabled={loadingNotaAdicional || !notaAdicional.trim()}
@@ -1155,30 +1308,6 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                   })}
                 </p>
               )}
-            </div>
-          )}
-
-          {/* Notas de Conversación / Seguimiento */}
-          {cliente.notaReseña && (
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <FileText size={12} className="text-zinc-400" />
-                  Notas de Conversación / Seguimiento
-                </span>
-                <button
-                  onClick={handleBorrarNotas}
-                  disabled={loadingBorrarNotas}
-                  title="Borrar todas las notas"
-                  className="flex items-center gap-1 text-[10px] font-bold text-zinc-600 hover:text-red-400 transition-colors cursor-pointer disabled:opacity-40"
-                >
-                  <Trash2 size={11} />
-                  {loadingBorrarNotas ? "Borrando..." : "Borrar notas"}
-                </button>
-              </h3>
-              <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-2xl whitespace-pre-wrap text-sm text-zinc-300 leading-relaxed font-sans shadow-inner">
-                {cliente.notaReseña}
-              </div>
             </div>
           )}
 
@@ -1236,6 +1365,49 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                   </span>
                 )}
               </div>
+              {/* Seguimientos/Notas */}
+              {seguimientosList.length > 0 && (
+                <div className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <MessageSquare size={14} className="text-zinc-400" />
+                    <span className="text-xs font-semibold text-zinc-300">Notas de Conversación</span>
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {seguimientosList.map((seg) => (
+                      <div 
+                        key={seg.id} 
+                        className="text-xs text-zinc-400 bg-zinc-900/40 px-3 py-2 rounded-lg border border-zinc-850/30 cursor-pointer hover:bg-zinc-900/60 transition-colors"
+                        onClick={() => setExpandedNoteId(expandedNoteId === seg.id ? null : seg.id)}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] text-zinc-500">
+                            {new Date(seg.fechaProg).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                          </span>
+                          {seg.estado && (
+                            <span className={`text-[10px] px-2 py-0.5 rounded ${
+                              seg.estado === "PENDIENTE" ? "bg-amber-500/10 text-amber-400" :
+                              seg.estado === "ENVIADO" ? "bg-emerald-500/10 text-emerald-400" :
+                              "bg-zinc-700 text-zinc-400"
+                            }`}>
+                              {seg.estado}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-zinc-300 ${expandedNoteId === seg.id ? "" : "line-clamp-2"}`}>
+                          {seg.mensaje}
+                        </p>
+                        {expandedNoteId === seg.id && (
+                          <div className="mt-2 pt-2 border-t border-zinc-850/50">
+                            <p className="text-[10px] text-zinc-500">
+                              Fecha programada: {new Date(seg.fechaProg).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getGuayaquilTimeString } from "@/lib/timezone";
 
 export async function POST(request: NextRequest) {
   try {
-    const { message } = await request.json();
+    const { message, asesor } = await request.json();
 
     if (!message) {
       return NextResponse.json({ error: "message es requerido" }, { status: 400 });
@@ -12,38 +13,32 @@ export async function POST(request: NextRequest) {
     // Llamar a la API de DeepSeek
     const deepseekApiKey = process.env.DEEPSEEK_API_KEY;
     const deepseekModel = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+    const guayaquilTime = getGuayaquilTimeString();
 
     if (!deepseekApiKey) {
       return NextResponse.json({ error: "DEEPSEEK_API_KEY no está configurada" }, { status: 500 });
     }
 
-    const prompt = `Analiza el siguiente mensaje del usuario y determina si es una solicitud para crear un aviso/recordatorio.
+    const prompt = `Analiza el mensaje. Si es un aviso, extrae fecha/hora. Si NO es aviso, responde brevemente.
+
+UBICACIÓN: Ecuador (Guayaquil/Loja UTC-5)
+HORA ACTUAL: ${guayaquilTime}
+
+IMPORTANTE: Usa siempre la hora de Ecuador como referencia.
 
 MENSAJE: "${message}"
 
-Si el mensaje contiene información sobre una fecha/hora específica para un recordatorio, extrae:
-1. Título del aviso
-2. Fecha y hora exacta (en formato YYYY-MM-DDTHH:mm)
-3. Teléfono (si se menciona)
-4. Descripción/mensaje del aviso
-
-Si NO es una solicitud de aviso, responde simplemente con un mensaje conversacional apropiado.
-
-Responde en formato JSON con esta estructura:
+Si es aviso, extrae en JSON:
 {
   "esAviso": true/false,
-  "titulo": "título del aviso o null",
-  "fecha": "YYYY-MM-DDTHH:mm o null",
-  "telefono": "número de teléfono o null",
-  "mensaje": "mensaje del aviso o null",
-  "response": "respuesta conversacional al usuario"
+  "titulo": string,
+  "fecha": "YYYY-MM-DDTHH:mm" (zona Ecuador UTC-5),
+  "telefono": string o null,
+  "mensaje": string o null,
+  "response": string (breve, máximo 50 palabras)
 }
 
-IMPORTANTE:
-- Si no se menciona un teléfono, usa un valor null
-- Si la fecha es relativa (ej: "mañana", "el próximo lunes"), calcula la fecha exacta basándote en la fecha actual: ${new Date().toISOString()}
-- Responde siempre en español
-- Si no hay suficiente información para crear un aviso, indica qué información falta`;
+Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
 
     const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
@@ -75,7 +70,7 @@ IMPORTANTE:
     const data = await response.json();
     const result = JSON.parse(data.choices[0].message.content);
 
-    // Si es un aviso, crearlo en la base de datos
+    // Si es un aviso, verificar conflictos antes de crear
     let avisoCreado = false;
     if (result.esAviso && result.titulo && result.fecha) {
       try {
@@ -86,6 +81,7 @@ IMPORTANTE:
 
         const conflictos = await prisma.aviso.findMany({
           where: {
+            creadoPor: asesor || "deepseek-chat",
             fechaProg: {
               gte: horaInicio,
               lte: horaFin,
@@ -94,6 +90,19 @@ IMPORTANTE:
           },
         });
 
+        // Si hay conflictos, NO crear el aviso y preguntar al usuario
+        if (conflictos.length > 0) {
+          result.response += `\n\n⚠️ Se detectaron ${conflictos.length} conflicto(s) de horario: ${conflictos.map(c => `"${c.titulo}" a las ${new Date(c.fechaProg).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`).join(", ")}`;
+          result.response += `\n\n❌ No se creó el aviso debido a los conflictos. Por favor, elige otra hora o confirma si deseas agendarlo igualmente.`;
+          
+          return NextResponse.json({
+            response: result.response,
+            avisoCreado: false,
+            conflictos,
+          });
+        }
+
+        // Si no hay conflictos, crear el aviso
         const aviso = await prisma.aviso.create({
           data: {
             titulo: result.titulo,
@@ -101,17 +110,11 @@ IMPORTANTE:
             telefono: result.telefono || "",
             fechaProg: nuevaFecha,
             estado: "PENDIENTE",
-            creadoPor: "deepseek-chat",
+            creadoPor: asesor || "deepseek-chat",
           },
         });
 
         avisoCreado = true;
-
-        // Agregar información de conflictos a la respuesta
-        if (conflictos.length > 0) {
-          result.response += `\n\n⚠️ Se detectaron ${conflictos.length} conflicto(s) de horario: ${conflictos.map(c => `"${c.titulo}" a las ${new Date(c.fechaProg).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`).join(", ")}`;
-        }
-
         result.response += `\n\n✅ Aviso creado correctamente para el ${nuevaFecha.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })} a las ${nuevaFecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`;
       } catch (error) {
         console.error("Error al crear aviso:", error);

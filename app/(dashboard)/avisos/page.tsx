@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Plus, Send, Clock, Trash2, Calendar, Phone, Bell, Loader2 } from "lucide-react";
 import { EstadoAviso } from "@/lib/estadoAviso";
 import AvisosCalendar from "@/components/AvisosCalendar";
 import AvisosChat from "@/components/AvisosChat";
 
 export default function AvisosPage() {
+  const { data: session } = useSession();
   const [avisos, setAvisos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -15,6 +17,7 @@ export default function AvisosPage() {
 
   // Estado del Filtro
   const [filtroEstado, setFiltroEstado] = useState<string>("");
+  const [asesorSeleccionado, setAsesorSeleccionado] = useState<string>("");
   
   // Estado del Calendario
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -25,10 +28,23 @@ export default function AvisosPage() {
   const [mensaje, setMensaje] = useState("");
   const [fechaProg, setFechaProg] = useState("");
 
+  // Determinar asesor automáticamente basado en el nombre del usuario
+  useEffect(() => {
+    if (session?.user?.name) {
+      const nombre = session.user.name.toLowerCase();
+      if (nombre.includes("cesar") || nombre.includes("césar")) {
+        setAsesorSeleccionado("Cesar");
+      } else if (nombre.includes("cristhopher") || nombre.includes("cristopher")) {
+        setAsesorSeleccionado("Cristhopher");
+      }
+    }
+  }, [session]);
+
   const fetchAvisos = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/avisos");
+      const url = asesorSeleccionado ? `/api/avisos?asesor=${asesorSeleccionado}` : "/api/avisos";
+      const response = await fetch(url);
       if (!response.ok) throw new Error("No se pudieron cargar los avisos");
       const data = await response.json();
       setAvisos(data);
@@ -37,7 +53,7 @@ export default function AvisosPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [asesorSeleccionado]);
 
   useEffect(() => {
     fetchAvisos();
@@ -203,7 +219,7 @@ export default function AvisosPage() {
         {/* Formulario y Listado */}
         <div className="lg:col-span-3 space-y-6">
           {/* Chat de Avisos */}
-          <AvisosChat onAvisoCreado={fetchAvisos} />
+          <AvisosChat onAvisoCreado={fetchAvisos} asesor={asesorSeleccionado} />
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Formulario de Creación */}

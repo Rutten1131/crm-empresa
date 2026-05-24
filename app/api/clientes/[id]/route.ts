@@ -23,6 +23,18 @@ async function analizarNotaYCrearAviso(clienteId: string, nota: string) {
     if (response.ok) {
       const data = await response.json();
       console.log("Análisis de nota completado:", data);
+      
+      // Si el bot tiene una respuesta conversacional, la devolvemos
+      if (data.analysis && data.analysis.response) {
+        return {
+          success: true,
+          botResponse: data.analysis.response,
+          needsClarification: data.analysis.needsClarification,
+          clarificationQuestions: data.analysis.clarificationQuestions,
+          avisoCreated: data.avisoCreated,
+        };
+      }
+      
       return data;
     }
   } catch (error) {
@@ -178,11 +190,37 @@ export async function PATCH(
       });
 
       // Analizar la nota para detectar fechas/horarios y crear avisos automáticamente
+      let botResponse = null;
       if (nota && nota.trim()) {
-        await analizarNotaYCrearAviso(id, nota);
+        const analysisResult = await analizarNotaYCrearAviso(id, nota);
+        if (analysisResult && analysisResult.botResponse) {
+          botResponse = analysisResult.botResponse;
+        }
       }
 
-      return NextResponse.json(cliente);
+      // Si no se creó aviso/seguimiento desde el análisis, crear seguimiento básico
+      if (nota && nota.trim()) {
+        const existingSeguimiento = await prisma.seguimiento.findFirst({
+          where: {
+            clienteId: id,
+            mensaje: nota,
+          },
+        });
+        
+        if (!existingSeguimiento) {
+          await prisma.seguimiento.create({
+            data: {
+              clienteId: id,
+              dia: new Date().getDate(),
+              mensaje: nota,
+              fechaProg: new Date(),
+              estado: "ENVIADO",
+            },
+          });
+        }
+      }
+
+      return NextResponse.json({ cliente, botResponse });
     }
 
     // ── Paso 3: Registrar pago (conectado a finanzas sin gastos) ──
@@ -288,11 +326,15 @@ export async function PATCH(
       });
 
       // Analizar la nota para detectar fechas/horarios y crear avisos automáticamente
+      let botResponse = null;
       if (notas && notas.trim()) {
-        await analizarNotaYCrearAviso(id, notas);
+        const analysisResult = await analizarNotaYCrearAviso(id, notas);
+        if (analysisResult && analysisResult.botResponse) {
+          botResponse = analysisResult.botResponse;
+        }
       }
 
-      return NextResponse.json(cliente);
+      return NextResponse.json({ cliente, botResponse });
     }
 
 
@@ -338,11 +380,15 @@ export async function PATCH(
       });
 
       // Analizar la nota para detectar fechas/horarios y crear avisos automáticamente
+      let botResponse = null;
       if (nota && nota.trim()) {
-        await analizarNotaYCrearAviso(id, nota);
+        const analysisResult = await analizarNotaYCrearAviso(id, nota);
+        if (analysisResult && analysisResult.botResponse) {
+          botResponse = analysisResult.botResponse;
+        }
       }
 
-      return NextResponse.json(cliente);
+      return NextResponse.json({ cliente, botResponse });
     }
 
     // ── Guardar notas iniciales para CRM (Paso 1) ──
@@ -363,11 +409,15 @@ export async function PATCH(
       });
 
       // Analizar la nota para detectar fechas/horarios y crear avisos automáticamente
+      let botResponse = null;
       if (notas && notas.trim()) {
-        await analizarNotaYCrearAviso(id, notas);
+        const analysisResult = await analizarNotaYCrearAviso(id, notas);
+        if (analysisResult && analysisResult.botResponse) {
+          botResponse = analysisResult.botResponse;
+        }
       }
 
-      return NextResponse.json(cliente);
+      return NextResponse.json({ cliente, botResponse });
     }
 
     // ── Guardar valor del producto (sin abono) ──

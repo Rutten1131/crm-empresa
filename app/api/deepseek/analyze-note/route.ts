@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getGuayaquilTimeString, formatGuayaquilDate } from "@/lib/timezone";
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Analizar la nota con DeepSeek para detectar fechas y horarios
+    const guayaquilTime = getGuayaquilTimeString();
     const deepseekResponse = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -41,27 +43,31 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "system",
-            content: `Eres un asistente que analiza notas de clientes para detectar fechas y horarios de seguimiento. 
-            Tu tarea es:
-            1. Detectar si la nota menciona una fecha y hora específica para un seguimiento
-            2. Extraer la fecha y hora en formato ISO 8601 (YYYY-MM-DDTHH:mm:ss)
-            3. Determinar el tipo de aviso (demo, seguimiento, llamada, etc.)
-            4. Resumir el propósito del aviso
-            
-            Responde SOLO en formato JSON con esta estructura:
-            {
-              "hasDateTime": boolean,
-              "dateTime": string (ISO 8601) o null,
-              "type": string (demo/seguimiento/llamada/otro) o null,
-              "summary": string (resumen del aviso) o null
-            }
-            
-            Si no hay fecha/hora específica, hasDateTime debe ser false y los demás campos null.
-            La fecha debe ser en la zona horaria de México (UTC-6).`,
+            content: `Analiza nota. Si tiene fecha/hora, extrae. Si NO, responde brevemente.
+
+UBICACIÓN: Ecuador (Guayaquil/Loja UTC-5)
+HORA ACTUAL: ${guayaquilTime}
+
+IMPORTANTE: Usa siempre la hora de Ecuador como referencia.
+
+NOTA: "${nota}"
+
+Si tiene fecha/hora, extrae en JSON:
+{
+  "hasDateTime": boolean,
+  "dateTime": string (ISO 8601 zona Ecuador UTC-5) o null,
+  "type": string (demo/seguimiento/llamada/otro) o null,
+  "summary": string o null,
+  "response": string (breve, máximo 50 palabras),
+  "needsClarification": boolean,
+  "clarificationQuestions": array o null
+}
+
+Si NO tiene fecha/hora, response: respuesta breve (máximo 30 palabras).`,
           },
           {
             role: "user",
-            content: `Cliente: ${cliente.nombre}\nNota: ${nota}\n\nAnaliza esta nota y detecta si hay una fecha y hora para seguimiento.`,
+            content: `Cliente: ${cliente.nombre}\nNota: ${nota}\n\nAnaliza esta nota y detecta si hay una fecha y hora para seguimiento. Usa la zona horaria de Guayaquil, Ecuador (UTC-5).`,
           },
         ],
         temperature: 0.3,
@@ -80,13 +86,23 @@ export async function POST(request: NextRequest) {
     // Parsear la respuesta de DeepSeek
     let analysis;
     try {
+      // Intentar parsear como JSON
       analysis = JSON.parse(analysisContent);
     } catch (e) {
-      console.error("Error al parsear respuesta de DeepSeek:", analysisContent);
-      return NextResponse.json({ error: "Error al procesar el análisis" }, { status: 500 });
+      // Si no es JSON, crear un objeto de análisis básico
+      console.log("La respuesta no es JSON, usando análisis básico:", analysisContent);
+      analysis = {
+        hasDateTime: false,
+        dateTime: null,
+        type: null,
+        summary: null,
+        response: analysisContent,
+        needsClarification: false,
+        clarificationQuestions: null
+      };
     }
 
-    // Si se detectó una fecha/hora, verificar conflictos y crear aviso
+    // Si se detectó una fecha/hora, verificar conflictos y crear seguimiento
     if (analysis.hasDateTime && analysis.dateTime) {
       // Verificar conflictos con avisos existentes
       const newDateTime = new Date(analysis.dateTime);
@@ -103,7 +119,41 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Crear el aviso
+      // Crear seguimiento asociado al cliente
+      const dia = newDateTime.getDate();
+      console.log("Creando seguimiento para cliente:", clienteId, "con mensaje:", analysis.summary || nota);
+      const seguimiento = await prisma.seguimiento.create({
+        data: {
+          clienteId: clienteId,
+          dia: dia,
+          mensaje: analysis.summary || nota,
+          fechaProg: newDateTime,
+          estado: "PENDIENTE",
+        },
+      });
+      console.log("Seguimiento creado:", seguimiento);
+
+      // Si hay conflictos, agregar pregunta de seguimiento
+      if (conflictingAvisos.length > 0) {
+        if (!analysis.clarificationQuestions) {
+          analysis.clarificationQuestions = [];
+        }
+        analysis.clarificationQuestions.push(
+          `Esa hora ya está ocupada con ${conflictingAvisos.length} aviso(s). ¿A qué hora prefieres agendarlo?`
+        );
+        analysis.needsClarification = true;
+        
+        return NextResponse.json({
+          analysis,
+          avisoCreated: false,
+          seguimientoCreated: true,
+          seguimiento,
+          conflict: true,
+          conflictingAvisos,
+        });
+      }
+
+      // Crear aviso solo si no hay conflictos
       const aviso = await prisma.aviso.create({
         data: {
           clienteId: clienteId,
@@ -112,19 +162,22 @@ export async function POST(request: NextRequest) {
           telefono: cliente.telefono || "",
           fechaProg: newDateTime,
           estado: "PENDIENTE",
-          creadoPor: "system",
+          creadoPor: "deepseek-note-analyzer",
         },
       });
 
       return NextResponse.json({
         analysis,
         avisoCreated: true,
+        seguimientoCreated: true,
+        seguimiento,
         aviso,
         conflict: conflictingAvisos.length > 0,
         conflictingAvisos,
       });
     }
 
+    // Si no hay fecha/hora pero hay preguntas de clarificación, devolver solo la respuesta
     return NextResponse.json({
       analysis,
       avisoCreated: false,

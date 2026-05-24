@@ -12,7 +12,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const asesor = searchParams.get("asesor");
+
+    const whereClause = asesor ? { creadoPor: asesor } : {};
+
     const avisos = await prisma.aviso.findMany({
+      where: whereClause,
       orderBy: {
         fechaProg: "desc",
       },

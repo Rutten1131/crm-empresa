@@ -141,7 +141,7 @@ model Aviso {
   estado      EstadoAviso   @default(PENDIENTE)
   clienteId   String?       // ID del cliente relacionado
   cliente     Cliente?      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  creadoPor   String        // userId
+  creadoPor   String        // userId (usar este campo para identificar al asesor: Cesar o Cristhopher)
   createdAt   DateTime      @default(now())
 }
 
@@ -173,4 +173,12 @@ model Pago {
   notas       String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  role      String   // "user" o "assistant"
+  content   String   @db.Text
+  asesor    String   // "Cesar" o "Cristhopher"
+  createdAt DateTime @default(now())
 }

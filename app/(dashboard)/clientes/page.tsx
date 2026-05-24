@@ -387,7 +387,9 @@ export default function ClientesPage() {
           const updatedClientes = await fetchClientes();
           if (updatedCliente) {
             const foundInList = updatedClientes?.find((c) => c.id === updatedCliente.id);
-            setSelectedCliente(foundInList || updatedCliente);
+            if (foundInList) {
+              setSelectedCliente(foundInList);
+            }
           }
         }}
         onClienteDeleted={(clienteId) => {

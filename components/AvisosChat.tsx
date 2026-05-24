@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send, Loader2, Bot, User } from "lucide-react";
+import MicrophoneButton from "./MicrophoneButton";
 
 interface Message {
   role: "user" | "assistant";
@@ -10,26 +11,54 @@ interface Message {
 
 interface AvisosChatProps {
   onAvisoCreado: () => void;
+  asesor?: string;
 }
 
-export default function AvisosChat({ onAvisoCreado }: AvisosChatProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "¡Hola! Soy tu asistente de avisos. Puedes decirme cosas como: \"Tengo una reunión mañana a las 3pm con Juan\" o \"Recordarme llamar a María el 15 de mayo a las 10am\" y yo crearé el aviso automáticamente."
-    }
-  ]);
+export default function AvisosChat({ onAvisoCreado, asesor }: AvisosChatProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Cargar mensajes históricos al montar el componente
+  useEffect(() => {
+    if (asesor) {
+      loadMessages();
+    }
+  }, [asesor]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  // Comentado para no hacer scroll automático al final
+  // useEffect(() => {
+  //   scrollToBottom();
+  // }, [messages]);
+
+  const loadMessages = async () => {
+    try {
+      const response = await fetch(`/api/chat-messages?asesor=${asesor}`);
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data);
+      }
+    } catch (error) {
+      console.error("Error al cargar mensajes:", error);
+    }
+  };
+
+  const saveMessage = async (role: "user" | "assistant", content: string) => {
+    try {
+      await fetch("/api/chat-messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, content, asesor }),
+      });
+    } catch (error) {
+      console.error("Error al guardar mensaje:", error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,12 +68,13 @@ export default function AvisosChat({ onAvisoCreado }: AvisosChatProps) {
     setInput("");
     setMessages(prev => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
+    await saveMessage("user", userMessage);
 
     try {
       const response = await fetch("/api/deepseek/chat-avisos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage, asesor }),
       });
 
       if (!response.ok) throw new Error("Error al procesar el mensaje");
@@ -52,6 +82,7 @@ export default function AvisosChat({ onAvisoCreado }: AvisosChatProps) {
       const data = await response.json();
       
       setMessages(prev => [...prev, { role: "assistant", content: data.response }]);
+      await saveMessage("assistant", data.response);
       
       if (data.avisoCreado) {
         onAvisoCreado();
@@ -113,14 +144,22 @@ export default function AvisosChat({ onAvisoCreado }: AvisosChatProps) {
 
       {/* Input */}
       <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Escribe tu mensaje aquí..."
-          disabled={loading}
-          className="flex-1 px-4 py-3 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-2xl text-xs text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
-        />
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Escribe tu mensaje aquí..."
+            disabled={loading}
+            className="w-full px-4 py-3 pr-12 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-2xl text-xs text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
+          />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+            <MicrophoneButton
+              onTranscript={(text) => setInput(prev => prev + (prev ? " " : "") + text)}
+              disabled={loading}
+            />
+          </div>
+        </div>
         <button
           type="submit"
           disabled={loading || !input.trim()}
