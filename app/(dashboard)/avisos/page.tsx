@@ -21,6 +21,9 @@ export default function AvisosPage() {
   
   // Estado del Calendario
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  
+  // Estado para aviso expandido
+  const [avisoExpandido, setAvisoExpandido] = useState<string | null>(null);
 
   // Campos del Formulario
   const [titulo, setTitulo] = useState("");
@@ -391,7 +394,7 @@ export default function AvisosPage() {
             </div>
           </div>
 
-          {/* Listado de Avisos */}
+          {/* Listado de Avisos - Cuadritos Pequeños */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-zinc-200">
@@ -411,9 +414,9 @@ export default function AvisosPage() {
             </div>
 
             {loading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-28 w-full bg-zinc-950 border border-zinc-900 rounded-3xl animate-pulse" />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div key={i} className="h-24 w-full bg-zinc-950 border border-zinc-900 rounded-2xl animate-pulse" />
                 ))}
               </div>
             ) : avisosPorFecha.length === 0 ? (
@@ -421,7 +424,7 @@ export default function AvisosPage() {
                 No hay avisos en este filtro.
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {avisosPorFecha.map((a) => {
                   const badge = getAvisoBadge(a.estado);
                   const fechaProgFormatted = new Date(a.fechaProg).toLocaleDateString("es-EC", {
@@ -433,16 +436,53 @@ export default function AvisosPage() {
                     minute: "2-digit",
                     hour12: true
                   });
+                  const isExpandido = avisoExpandido === a.id;
 
                   return (
                     <div
                       key={a.id}
-                      className="bg-zinc-950 border border-zinc-900 rounded-3xl p-5 md:p-6 space-y-4 transition-all hover:border-zinc-800 group relative"
+                      onClick={() => setAvisoExpandido(isExpandido ? null : a.id)}
+                      className={`bg-zinc-950 border border-zinc-900 rounded-2xl p-4 space-y-3 transition-all cursor-pointer hover:border-zinc-800 group relative ${
+                        isExpandido ? "col-span-2 md:col-span-3 lg:col-span-4" : ""
+                      }`}
                     >
                       {/* Top Row */}
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <h3 className="text-sm font-semibold text-zinc-200">{a.titulo}</h3>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-xs font-semibold text-zinc-200 truncate">{a.titulo}</h3>
+                          <div className="text-[10px] text-zinc-500 font-mono mt-1">
+                            {new Date(a.fechaProg).toLocaleTimeString("es-EC", {
+                              timeZone: "America/Guayaquil",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${badge.style}`}>
+                            {badge.text}
+                          </span>
+
+                          {a.estado === EstadoAviso.PENDIENTE && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(a.id);
+                              }}
+                              className="p-1.5 text-zinc-650 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-lg transition-all cursor-pointer"
+                              title="Cancelar Aviso"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Información expandida */}
+                      {isExpandido && (
+                        <div className="space-y-3 pt-3 border-t border-zinc-850">
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500 font-mono">
                             <span className="flex items-center gap-1">
                               <Phone size={12} />
@@ -453,29 +493,13 @@ export default function AvisosPage() {
                               {fechaProgFormatted}
                             </span>
                           </div>
+
+                          {/* Mensaje */}
+                          <div className="p-3 bg-zinc-900/40 border border-zinc-850/50 rounded-xl text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed">
+                            {a.mensaje}
+                          </div>
                         </div>
-
-                        <div className="flex items-center gap-3">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${badge.style}`}>
-                            {badge.text}
-                          </span>
-
-                          {a.estado === EstadoAviso.PENDIENTE && (
-                            <button
-                              onClick={() => handleDelete(a.id)}
-                              className="p-2 text-zinc-650 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl transition-all cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
-                              title="Cancelar Aviso"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Mensaje */}
-                      <div className="p-3 bg-zinc-900/40 border border-zinc-850/50 rounded-2xl text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed">
-                        {a.mensaje}
-                      </div>
+                      )}
                     </div>
                   );
                 })}

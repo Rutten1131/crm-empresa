@@ -11,6 +11,7 @@ interface Aviso {
   fechaProg: string;
   estado: string;
   clienteId?: string;
+  creadoPor?: string;
   cliente?: {
     nombre: string;
   };
@@ -70,6 +71,37 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
     });
   };
 
+  const getAvisoColor = (aviso: Aviso) => {
+    const creadoPor = aviso.creadoPor?.toLowerCase() || "";
+    if (creadoPor.includes("cesar") || creadoPor.includes("césar")) {
+      return "bg-blue-500";
+    } else if (creadoPor.includes("cristhopher") || creadoPor.includes("cristopher")) {
+      return "bg-emerald-500";
+    } else {
+      return "bg-zinc-500";
+    }
+  };
+
+  const getAvisosByAsesorForDate = (date: Date) => {
+    const avisosDelDia = getAvisosForDate(date);
+    return {
+      cristhopher: avisosDelDia.filter(a => 
+        a.creadoPor?.toLowerCase().includes("cristhopher") || 
+        a.creadoPor?.toLowerCase().includes("cristopher")
+      ),
+      cesar: avisosDelDia.filter(a => 
+        a.creadoPor?.toLowerCase().includes("cesar") || 
+        a.creadoPor?.toLowerCase().includes("césar")
+      ),
+      otros: avisosDelDia.filter(a => 
+        !a.creadoPor?.toLowerCase().includes("cristhopher") && 
+        !a.creadoPor?.toLowerCase().includes("cristopher") &&
+        !a.creadoPor?.toLowerCase().includes("cesar") &&
+        !a.creadoPor?.toLowerCase().includes("césar")
+      ),
+    };
+  };
+
   const hasAvisosOnDate = (date: Date) => {
     return getAvisosForDate(date).length > 0;
   };
@@ -103,7 +135,8 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
     // Days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      const hasAvisos = hasAvisosOnDate(date);
+      const avisosDelDia = getAvisosByAsesorForDate(date);
+      const hasAvisos = avisosDelDia.cristhopher.length > 0 || avisosDelDia.cesar.length > 0 || avisosDelDia.otros.length > 0;
       const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
       const isToday = date.toDateString() === new Date().toDateString();
 
@@ -112,7 +145,7 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
           key={day}
           onClick={() => handleDateClick(date)}
           className={`
-            h-10 w-10 rounded-xl flex items-center justify-center text-xs font-bold transition-all cursor-pointer relative
+            h-14 w-full rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all cursor-pointer relative
             ${isSelected 
               ? "bg-zinc-100 text-zinc-950" 
               : isToday 
@@ -121,10 +154,18 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
             }
           `}
         >
-          {day}
+          <span>{day}</span>
           {hasAvisos && (
-            <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
-              <div className="w-1 h-1 bg-emerald-400 rounded-full" />
+            <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-1">
+              {avisosDelDia.cristhopher.length > 0 && (
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+              )}
+              {avisosDelDia.cesar.length > 0 && (
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+              )}
+              {avisosDelDia.otros.length > 0 && (
+                <div className="w-1.5 h-1.5 bg-zinc-500 rounded-full" />
+              )}
             </div>
           )}
         </button>
@@ -172,7 +213,7 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
   const renderTimeSlots = () => {
     if (!selectedDate) return null;
 
-    const avisosDelDia = getAvisosForDate(selectedDate);
+    const avisosDelDia = getAvisosByAsesorForDate(selectedDate);
     const hours = Array.from({ length: 24 }, (_, i) => i);
 
     return (
@@ -190,12 +231,34 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
           </button>
         </div>
 
+        {/* Leyenda de colores */}
+        <div className="flex gap-4 text-xs">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+            <span className="text-zinc-400">Cristhopher</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-blue-500 rounded-full" />
+            <span className="text-zinc-400">Cesar</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-zinc-500 rounded-full" />
+            <span className="text-zinc-400">Otros</span>
+          </div>
+        </div>
+
         <div className="space-y-1 max-h-64 overflow-y-auto">
           {hours.map(hour => {
-            const avisosEnHora = avisosDelDia.filter(aviso => {
-              const avisoHour = getEcuadorHour(aviso.fechaProg);
+            const avisosEnHora = avisosDelDia.cristhopher.filter(a => {
+              const avisoHour = getEcuadorHour(a.fechaProg);
               return avisoHour === hour;
-            });
+            }).concat(avisosDelDia.cesar.filter(a => {
+              const avisoHour = getEcuadorHour(a.fechaProg);
+              return avisoHour === hour;
+            })).concat(avisosDelDia.otros.filter(a => {
+              const avisoHour = getEcuadorHour(a.fechaProg);
+              return avisoHour === hour;
+            }));
 
             return (
               <div
@@ -214,8 +277,9 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
                 {avisosEnHora.length > 0 ? (
                   <div className="flex-1 space-y-1">
                     {avisosEnHora.map(aviso => (
-                      <div key={aviso.id} className="text-zinc-200">
-                        {aviso.titulo}
+                      <div key={aviso.id} className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${getAvisoColor(aviso)}`} />
+                        <span className="text-zinc-200">{aviso.titulo}</span>
                       </div>
                     ))}
                   </div>
