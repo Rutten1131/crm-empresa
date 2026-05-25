@@ -13,6 +13,7 @@ import {
   User as UserIcon,
   Menu,
   X,
+  Bot,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -50,9 +51,9 @@ export default function Sidebar({ user }: SidebarProps) {
   // Solo mostrar configuración si es ADMIN
   if (userRole === "ADMIN") {
     menuItems.push({
-      name: "Configuración",
-      href: "/configuracion",
-      icon: Settings,
+      name: "CHAT",
+      href: "/chat",
+      icon: Bot,
     });
   }
 
