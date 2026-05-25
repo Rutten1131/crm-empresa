@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         const mensaje = `⏰ *RECORDATORIO 1H ANTES*\n\n` +
           `📌 *${aviso.titulo}*\n` +
           `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
-          `📝 ${aviso.mensaje}\n\n` +
+          (aviso.mensaje !== aviso.titulo ? `📝 ${aviso.mensaje}\n\n` : '\n') +
           `Te faltan 1 hora para este aviso.`;
         
         const resultado = await enviarWhatsApp(aviso.telefono, mensaje);
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
         const mensaje = `⏰ *RECORDATORIO 30 MIN ANTES*\n\n` +
           `📌 *${aviso.titulo}*\n` +
           `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
-          `📝 ${aviso.mensaje}\n\n` +
+          (aviso.mensaje !== aviso.titulo ? `📝 ${aviso.mensaje}\n\n` : '\n') +
           `Te faltan 30 minutos para este aviso.`;
         
         const resultado = await enviarWhatsApp(aviso.telefono, mensaje);
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
         const mensaje = `⏰ *RECORDATORIO 10 MIN ANTES*\n\n` +
           `📌 *${aviso.titulo}*\n` +
           `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
-          `📝 ${aviso.mensaje}\n\n` +
+          (aviso.mensaje !== aviso.titulo ? `📝 ${aviso.mensaje}\n\n` : '\n') +
           `Te faltan 10 minutos para este aviso.`;
         
         const resultado = await enviarWhatsApp(aviso.telefono, mensaje);
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
         const mensaje = `🔔 *AVISO AHORA*\n\n` +
           `📌 *${aviso.titulo}*\n` +
           `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
-          `📝 ${aviso.mensaje}`;
+          (aviso.mensaje !== aviso.titulo ? `📝 ${aviso.mensaje}` : '');
         
         const resultado = await enviarWhatsApp(aviso.telefono, mensaje);
         
