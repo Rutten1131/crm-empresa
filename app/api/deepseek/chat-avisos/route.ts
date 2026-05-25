@@ -74,10 +74,10 @@ Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
     let avisoCreado = false;
     if (result.esAviso && result.titulo && result.fecha) {
       try {
-        // Verificar conflictos de horarios
+        // Verificar conflictos de horarios (margen de 15 minutos)
         const nuevaFecha = parseEcuadorStringToDate(result.fecha);
-        const horaInicio = new Date(nuevaFecha.getTime() - 60 * 60 * 1000);
-        const horaFin = new Date(nuevaFecha.getTime() + 60 * 60 * 1000);
+        const horaInicio = new Date(nuevaFecha.getTime() - 15 * 60 * 1000);
+        const horaFin = new Date(nuevaFecha.getTime() + 15 * 60 * 1000);
 
         const conflictos = await prisma.aviso.findMany({
           where: {

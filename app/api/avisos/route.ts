@@ -56,10 +56,10 @@ export async function POST(request: NextRequest) {
     // Normalizar el teléfono (mantener solo números y +)
     const telefonoNormalizado = telefono.replace(/[^\d+]/g, "");
 
-    // Verificar conflictos de horarios (dentro de 1 hora antes o después)
+    // Verificar conflictos de horarios (margen de 15 minutos)
     const nuevaFecha = parseEcuadorStringToDate(fechaProg);
-    const horaInicio = new Date(nuevaFecha.getTime() - 60 * 60 * 1000); // 1 hora antes
-    const horaFin = new Date(nuevaFecha.getTime() + 60 * 60 * 1000); // 1 hora después
+    const horaInicio = new Date(nuevaFecha.getTime() - 15 * 60 * 1000); // 15 minutos antes
+    const horaFin = new Date(nuevaFecha.getTime() + 15 * 60 * 1000); // 15 minutos después
 
     const conflictos = await prisma.aviso.findMany({
       where: {
