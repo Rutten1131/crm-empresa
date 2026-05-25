@@ -103,11 +103,26 @@ Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
         }
 
         // Si no hay conflictos, crear el aviso
+        // Determinar el número de teléfono según el asesor
+        const recontactPhones = process.env.RECONTACTO_PHONES || "";
+        const phonesArray = recontactPhones.split(",");
+        const cristhopherPhone = phonesArray[0]?.trim() || "";
+        const cesarPhone = phonesArray[1]?.trim() || "";
+        
+        let telefono = result.telefono || "";
+        if (!telefono && asesor) {
+          if (asesor.toLowerCase().includes("cristhopher") || asesor.toLowerCase().includes("cristopher")) {
+            telefono = cristhopherPhone;
+          } else if (asesor.toLowerCase().includes("cesar")) {
+            telefono = cesarPhone;
+          }
+        }
+        
         const aviso = await prisma.aviso.create({
           data: {
             titulo: result.titulo,
             mensaje: result.mensaje || result.titulo,
-            telefono: result.telefono || process.env.DEFAULT_WHATSAPP_NUMBER || "",
+            telefono: telefono,
             fechaProg: nuevaFecha,
             estado: "PENDIENTE",
             creadoPor: asesor || "deepseek-chat",
