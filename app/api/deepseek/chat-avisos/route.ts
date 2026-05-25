@@ -90,16 +90,10 @@ Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
           },
         });
 
-        // Si hay conflictos, NO crear el aviso y preguntar al usuario
+        // Si hay conflictos, informar al usuario pero crear el aviso igualmente
         if (conflictos.length > 0) {
           result.response += `\n\n⚠️ Se detectaron ${conflictos.length} conflicto(s) de horario: ${conflictos.map(c => `"${c.titulo}" a las ${formatEcuadorTimeShort(c.fechaProg)}`).join(", ")}`;
-          result.response += `\n\n❌ No se creó el aviso debido a los conflictos. Por favor, elige otra hora o confirma si deseas agendarlo igualmente.`;
-          
-          return NextResponse.json({
-            response: result.response,
-            avisoCreado: false,
-            conflictos,
-          });
+          result.response += `\n\n✅ Aviso creado igualmente. Ten en cuenta el conflicto de horario.`;
         }
 
         // Si no hay conflictos, crear el aviso
