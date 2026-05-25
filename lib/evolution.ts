@@ -10,8 +10,20 @@ export async function enviarWhatsApp(telefono: string, mensaje: string): Promise
     return { success: false, error: "Configuración de Evolution API incompleta" };
   }
 
+  // Validar que el teléfono no esté vacío
+  if (!telefono || telefono.trim() === "") {
+    console.error("Teléfono vacío, no se puede enviar mensaje");
+    return { success: false, error: "Teléfono vacío" };
+  }
+
   // Normalizar teléfono: quitar +, espacios, guiones
   const numero = telefono.replace(/[^\d]/g, "");
+
+  // Validar que el número normalizado no esté vacío
+  if (!numero || numero === "") {
+    console.error("Número normalizado vacío, no se puede enviar mensaje");
+    return { success: false, error: "Número normalizado vacío" };
+  }
 
   try {
     const response = await fetch(
