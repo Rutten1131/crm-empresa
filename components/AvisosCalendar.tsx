@@ -20,11 +20,23 @@ interface Aviso {
 interface AvisosCalendarProps {
   avisos: Aviso[];
   onDateClick: (date: Date) => void;
+  asesor?: string;
 }
 
-export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarProps) {
+export default function AvisosCalendar({ avisos, onDateClick, asesor }: AvisosCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  // Filtrar avisos según el asesor seleccionado
+  const avisosFiltrados = asesor ? avisos.filter(a => {
+    const creadoPor = a.creadoPor?.toLowerCase() || "";
+    if (asesor.toLowerCase().includes("cesar") || asesor.toLowerCase().includes("césar")) {
+      return creadoPor.includes("cesar") || creadoPor.includes("césar");
+    } else if (asesor.toLowerCase().includes("cristhopher") || asesor.toLowerCase().includes("cristopher")) {
+      return creadoPor.includes("cristhopher") || creadoPor.includes("cristopher");
+    }
+    return true;
+  }) : avisos;
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -65,7 +77,7 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
 
   const getAvisosForDate = (date: Date) => {
     const dateStr = getLocalDateStringFromDateObject(date);
-    return avisos.filter(aviso => {
+    return avisosFiltrados.filter(aviso => {
       const avisoDate = getEcuadorLocalDateString(aviso.fechaProg);
       return avisoDate === dateStr;
     });

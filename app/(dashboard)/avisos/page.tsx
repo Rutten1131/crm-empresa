@@ -193,7 +193,7 @@ export default function AvisosPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Calendario */}
         <div className="lg:col-span-1">
-          <AvisosCalendar avisos={avisos} onDateClick={handleDateClick} />
+          <AvisosCalendar avisos={avisos} onDateClick={handleDateClick} asesor={asesorSeleccionado} />
           
           {/* Avisos de Hoy */}
           <div className="mt-6 bg-zinc-950 border border-zinc-900 rounded-3xl p-6">
