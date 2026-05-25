@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EstadoAviso } from "@prisma/client";
+import { parseEcuadorStringToDate, formatEcuadorTimeShort } from "@/lib/timezone";
 
 // GET: Obtener lista de avisos programados
 export async function GET(request: NextRequest) {
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     const telefonoNormalizado = telefono.replace(/[^\d+]/g, "");
 
     // Verificar conflictos de horarios (dentro de 1 hora antes o después)
-    const nuevaFecha = new Date(fechaProg);
+    const nuevaFecha = parseEcuadorStringToDate(fechaProg);
     const horaInicio = new Date(nuevaFecha.getTime() - 60 * 60 * 1000); // 1 hora antes
     const horaFin = new Date(nuevaFecha.getTime() + 60 * 60 * 1000); // 1 hora después
 
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
         titulo,
         mensaje,
         telefono: telefonoNormalizado,
-        fechaProg: new Date(fechaProg),
+        fechaProg: nuevaFecha,
         estado: EstadoAviso.PENDIENTE,
         creadoPor: session.user.id,
       },
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
       ...nuevoAviso,
       conflictos: conflictos.length > 0 ? conflictos : undefined,
       mensajeConflicto: conflictos.length > 0 
-        ? `⚠️ Se detectaron ${conflictos.length} conflicto(s) de horario: ${conflictos.map(c => `"${c.titulo}" a las ${new Date(c.fechaProg).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`).join(", ")}`
+        ? `⚠️ Se detectaron ${conflictos.length} conflicto(s) de horario: ${conflictos.map(c => `"${c.titulo}" a las ${formatEcuadorTimeShort(c.fechaProg)}`).join(", ")}`
         : undefined
     }, { status: 201 });
   } catch (error: any) {

@@ -4,11 +4,77 @@
  */
 
 /**
+ * Parsea una fecha/hora que viene como string local de Ecuador (Guayaquil/Loja)
+ * y retorna un objeto Date correcto (independiente de la zona horaria del servidor).
+ * Soporta formatos como "YYYY-MM-DDTHH:mm", "YYYY-MM-DD HH:mm:ss", etc.
+ */
+export function parseEcuadorStringToDate(dateStr: string): Date {
+  if (!dateStr) return new Date();
+  
+  const cleanStr = dateStr.trim();
+  
+  // Si ya tiene una especificación de zona horaria (Z o +XX:XX o -XX:XX), dejar que el motor la parsee.
+  if (/[Z+-]\d{2}(:?\d{2})?$/.test(cleanStr)) {
+    return new Date(cleanStr);
+  }
+  
+  // Si no tiene zona horaria, asumimos que está en America/Guayaquil (UTC-5)
+  // Reemplazar espacios por 'T' para asegurar formato ISO.
+  const isoStr = cleanStr.includes(" ") ? cleanStr.replace(" ", "T") : cleanStr;
+  
+  // Agregamos el offset -05:00 para forzar la interpretación en hora de Ecuador.
+  return new Date(`${isoStr}-05:00`);
+}
+
+/**
+ * Formatea una fecha en Guayaquil en formato legible completo (es-EC)
+ */
+export function formatEcuadorDate(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString("es-EC", {
+    timeZone: "America/Guayaquil",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/**
+ * Formatea solo la fecha (es-EC, sin hora) en zona horaria de Ecuador
+ */
+export function formatEcuadorDateShort(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("es-EC", {
+    timeZone: "America/Guayaquil",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * Formatea solo la hora (es-EC) en zona horaria de Ecuador
+ */
+export function formatEcuadorTimeShort(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleTimeString("es-EC", {
+    timeZone: "America/Guayaquil",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/**
  * Obtiene la fecha y hora actual en Guayaquil/Loja, Ecuador (UTC-5)
+ * Nota: Retorna un objeto Date local, pero con los números correspondientes a Ecuador.
+ * Úsalo con cuidado si necesitas el momento absoluto.
  */
 export function getGuayaquilTime(): Date {
   const now = new Date();
-  // Usar toLocaleString para obtener la hora correcta en Guayaquil
   const guayaquilString = now.toLocaleString("en-US", {
     timeZone: "America/Guayaquil",
     year: "numeric",
@@ -20,7 +86,6 @@ export function getGuayaquilTime(): Date {
     hour12: false,
   });
   
-  // Parsear manualmente la fecha
   const [datePart, timePart] = guayaquilString.split(", ");
   const [month, day, year] = datePart.split("/").map(Number);
   const [hour, minute, second] = timePart.split(":").map(Number);
@@ -55,7 +120,6 @@ export function toGuayaquilTime(date: Date): Date {
  */
 export function getGuayaquilTimeString(): string {
   const now = new Date();
-  // Usar toLocaleString para obtener la fecha y hora correcta en Guayaquil
   const guayaquilString = now.toLocaleString("es-EC", {
     timeZone: "America/Guayaquil",
     year: "numeric",
@@ -69,16 +133,9 @@ export function getGuayaquilTimeString(): string {
 }
 
 /**
- * Formatea una fecha en Guayaquil en formato legible
+ * Mantener por compatibilidad hacia atrás
  */
 export function formatGuayaquilDate(date: Date): string {
-  return date.toLocaleString("es-EC", {
-    timeZone: "America/Guayaquil",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+  return formatEcuadorDate(date);
 }
+

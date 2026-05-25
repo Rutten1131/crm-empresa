@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getGuayaquilTimeString } from "@/lib/timezone";
+import { getGuayaquilTimeString, parseEcuadorStringToDate, formatEcuadorTimeShort, formatEcuadorDateShort } from "@/lib/timezone";
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,7 +75,7 @@ Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
     if (result.esAviso && result.titulo && result.fecha) {
       try {
         // Verificar conflictos de horarios
-        const nuevaFecha = new Date(result.fecha);
+        const nuevaFecha = parseEcuadorStringToDate(result.fecha);
         const horaInicio = new Date(nuevaFecha.getTime() - 60 * 60 * 1000);
         const horaFin = new Date(nuevaFecha.getTime() + 60 * 60 * 1000);
 
@@ -92,7 +92,7 @@ Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
 
         // Si hay conflictos, NO crear el aviso y preguntar al usuario
         if (conflictos.length > 0) {
-          result.response += `\n\n⚠️ Se detectaron ${conflictos.length} conflicto(s) de horario: ${conflictos.map(c => `"${c.titulo}" a las ${new Date(c.fechaProg).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`).join(", ")}`;
+          result.response += `\n\n⚠️ Se detectaron ${conflictos.length} conflicto(s) de horario: ${conflictos.map(c => `"${c.titulo}" a las ${formatEcuadorTimeShort(c.fechaProg)}`).join(", ")}`;
           result.response += `\n\n❌ No se creó el aviso debido a los conflictos. Por favor, elige otra hora o confirma si deseas agendarlo igualmente.`;
           
           return NextResponse.json({
@@ -115,7 +115,7 @@ Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
         });
 
         avisoCreado = true;
-        result.response += `\n\n✅ Aviso creado correctamente para el ${nuevaFecha.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })} a las ${nuevaFecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`;
+        result.response += `\n\n✅ Aviso creado correctamente para el ${formatEcuadorDateShort(nuevaFecha)} a las ${formatEcuadorTimeShort(nuevaFecha)}`;
       } catch (error) {
         console.error("Error al crear aviso:", error);
         result.response += "\n\n❌ Hubo un error al crear el aviso. Por favor intenta de nuevo.";

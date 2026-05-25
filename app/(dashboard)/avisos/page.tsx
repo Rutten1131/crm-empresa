@@ -131,19 +131,31 @@ export default function AvisosPage() {
     return a.estado === filtroEstado;
   });
 
+  const getEcuadorLocalDateString = (dateInput: Date | string) => {
+    const d = new Date(dateInput);
+    const guayaquilStr = d.toLocaleString("en-US", {
+      timeZone: "America/Guayaquil",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const [month, day, year] = guayaquilStr.split("/");
+    return `${year}-${month}-${day}`;
+  };
+
   // Filtrar avisos por fecha seleccionada
   const avisosPorFecha = selectedDate
     ? avisos.filter((a) => {
-        const avisoDate = new Date(a.fechaProg).toISOString().split('T')[0];
-        const selectedDateStr = selectedDate.toISOString().split('T')[0];
+        const avisoDate = getEcuadorLocalDateString(a.fechaProg);
+        const selectedDateStr = getEcuadorLocalDateString(selectedDate);
         return avisoDate === selectedDateStr;
       })
     : avisos;
 
   // Obtener avisos de hoy
   const avisosHoy = avisos.filter((a) => {
-    const avisoDate = new Date(a.fechaProg).toISOString().split('T')[0];
-    const today = new Date().toISOString().split('T')[0];
+    const avisoDate = getEcuadorLocalDateString(a.fechaProg);
+    const today = getEcuadorLocalDateString(new Date());
     return avisoDate === today;
   });
 
@@ -201,7 +213,12 @@ export default function AvisosPage() {
                         </span>
                       </div>
                       <p className="text-[10px] text-zinc-500 font-mono">
-                        {new Date(a.fechaProg).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(a.fechaProg).toLocaleTimeString("es-EC", {
+                          timeZone: "America/Guayaquil",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true
+                        })}
                       </p>
                     </div>
                   );
@@ -361,7 +378,12 @@ export default function AvisosPage() {
                     onClick={() => setSelectedDate(null)}
                     className="px-3 py-1.5 bg-zinc-800 text-zinc-200 text-xs font-bold rounded-xl transition-all cursor-pointer hover:bg-zinc-700"
                   >
-                    {selectedDate.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                    {selectedDate.toLocaleDateString("es-EC", {
+                      timeZone: "America/Guayaquil",
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}
                     <span className="ml-2 text-zinc-500">✕</span>
                   </button>
                 </div>
@@ -374,7 +396,12 @@ export default function AvisosPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-zinc-200">
                 {selectedDate 
-                  ? `Avisos para ${selectedDate.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}`
+                  ? `Avisos para ${selectedDate.toLocaleDateString("es-EC", {
+                      timeZone: "America/Guayaquil",
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}`
                   : "Todos los Avisos"
                 }
               </h3>
@@ -397,12 +424,14 @@ export default function AvisosPage() {
               <div className="space-y-4">
                 {avisosPorFecha.map((a) => {
                   const badge = getAvisoBadge(a.estado);
-                  const fechaProgFormatted = new Date(a.fechaProg).toLocaleDateString("es-MX", {
+                  const fechaProgFormatted = new Date(a.fechaProg).toLocaleDateString("es-EC", {
+                    timeZone: "America/Guayaquil",
                     day: "2-digit",
                     month: "short",
                     year: "numeric",
                     hour: "2-digit",
                     minute: "2-digit",
+                    hour12: true
                   });
 
                   return (

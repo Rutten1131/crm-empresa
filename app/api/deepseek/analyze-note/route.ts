@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getGuayaquilTimeString, formatGuayaquilDate } from "@/lib/timezone";
+import { getGuayaquilTimeString, formatGuayaquilDate, parseEcuadorStringToDate } from "@/lib/timezone";
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,7 +105,7 @@ Si NO tiene fecha/hora, response: respuesta breve (máximo 30 palabras).`,
     // Si se detectó una fecha/hora, verificar conflictos y crear seguimiento
     if (analysis.hasDateTime && analysis.dateTime) {
       // Verificar conflictos con avisos existentes
-      const newDateTime = new Date(analysis.dateTime);
+      const newDateTime = parseEcuadorStringToDate(analysis.dateTime);
       const conflictStart = new Date(newDateTime.getTime() - 30 * 60 * 1000); // 30 minutos antes
       const conflictEnd = new Date(newDateTime.getTime() + 30 * 60 * 1000); // 30 minutos después
 

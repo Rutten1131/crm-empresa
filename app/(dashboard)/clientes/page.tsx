@@ -269,7 +269,8 @@ export default function ClientesPage() {
                   const proxSeg = getProximoSeguimiento(c);
                   const inactivo = esInactivo(c);
 
-                  const fechaIngresoFormatted = new Date(c.fechaIngreso).toLocaleDateString("es-MX", {
+                  const fechaIngresoFormatted = new Date(c.fechaIngreso).toLocaleDateString("es-EC", {
+                    timeZone: "America/Guayaquil",
                     day: "2-digit",
                     month: "short",
                     year: "numeric",
@@ -347,7 +348,8 @@ export default function ClientesPage() {
                           <div className="flex items-center gap-1.5 text-zinc-400">
                             <Calendar size={12} className="text-zinc-500" />
                             <span>
-                              {new Date(proxSeg.fechaProg).toLocaleDateString("es-MX", {
+                              {new Date(proxSeg.fechaProg).toLocaleDateString("es-EC", {
+                                timeZone: "America/Guayaquil",
                                 day: "2-digit",
                                 month: "short",
                               })}

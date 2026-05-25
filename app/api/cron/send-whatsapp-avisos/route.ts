@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { formatEcuadorDateShort, formatEcuadorTimeShort } from "@/lib/timezone";
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,14 +21,18 @@ export async function GET(request: NextRequest) {
     const [month, day, year] = datePart.split("/").map(Number);
     const [hour, minute, second] = timePart.split(":").map(Number);
     
-    const ecuadorTime = new Date(year, month - 1, day, hour, minute, second);
+    // Formatear los números de mes y día con ceros a la izquierda
+    const mm = String(month).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const hh = String(hour).padStart(2, '0');
+    const minStr = String(minute).padStart(2, '0');
+    const secStr = String(second).padStart(2, '0');
     
-    // Obtener avisos pendientes para hoy
-    const startOfDay = new Date(ecuadorTime);
-    startOfDay.setHours(0, 0, 0, 0);
+    const ecuadorTime = new Date(`${year}-${mm}-${dd}T${hh}:${minStr}:${secStr}.000-05:00`);
     
-    const endOfDay = new Date(ecuadorTime);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Obtener avisos pendientes para hoy (UTC-5)
+    const startOfDay = new Date(`${year}-${mm}-${dd}T00:00:00.000-05:00`);
+    const endOfDay = new Date(`${year}-${mm}-${dd}T23:59:59.999-05:00`);
     
     const avisos = await prisma.aviso.findMany({
       where: {
@@ -57,14 +62,10 @@ export async function GET(request: NextRequest) {
     
     for (const [asesor, avisosAsesor] of Object.entries(avisosPorAsesor)) {
       // Crear mensaje resumen para el asesor
-      let mensaje = `📅 *Avisos del día ${ecuadorTime.toLocaleDateString("es-EC")}*\n\n`;
+      let mensaje = `📅 *Avisos del día ${formatEcuadorDateShort(ecuadorTime)}*\n\n`;
       
       avisosAsesor.forEach((aviso, index) => {
-        const hora = aviso.fechaProg.toLocaleTimeString("es-EC", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
+        const hora = formatEcuadorTimeShort(aviso.fechaProg);
         
         mensaje += `${index + 1}. *${aviso.titulo}*\n`;
         mensaje += `   🕐 ${hora}\n`;

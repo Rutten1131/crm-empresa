@@ -1060,7 +1060,7 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                               <div className="flex justify-between items-center">
                                 <span className="font-mono text-zinc-300 font-bold">${parseFloat(p.monto).toFixed(2)} ({p.metodo})</span>
                                 <span className="text-[10px] text-zinc-500">
-                                  {p.fechaPago ? new Date(p.fechaPago).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) : ""}
+                                  {p.fechaPago ? new Date(p.fechaPago).toLocaleDateString("es-EC", { timeZone: "America/Guayaquil", day: "2-digit", month: "short" }) : ""}
                                 </span>
                               </div>
                               {p.notas && (
@@ -1247,7 +1247,8 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                 {cliente.fechaCompra && (
                   <p className="text-xs text-zinc-500">
                     Pagado el{" "}
-                    {new Date(cliente.fechaCompra).toLocaleDateString("es-MX", {
+                    {new Date(cliente.fechaCompra).toLocaleDateString("es-EC", {
+                      timeZone: "America/Guayaquil",
                       day: "2-digit",
                       month: "long",
                       year: "numeric",
@@ -1301,7 +1302,8 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
               {cliente.fechaReseña && (
                 <p className="text-xs text-zinc-500">
                   Cerrado el{" "}
-                  {new Date(cliente.fechaReseña).toLocaleDateString("es-MX", {
+                  {new Date(cliente.fechaReseña).toLocaleDateString("es-EC", {
+                    timeZone: "America/Guayaquil",
                     day: "2-digit",
                     month: "long",
                     year: "numeric",
@@ -1325,7 +1327,7 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                 </div>
                 {cliente.fechaDemo && (
                   <span className="text-[10px] text-zinc-500">
-                    {new Date(cliente.fechaDemo).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })}
+                    {new Date(cliente.fechaDemo).toLocaleDateString("es-EC", { timeZone: "America/Guayaquil", day: "2-digit", month: "short" })}
                   </span>
                 )}
               </div>
@@ -1345,7 +1347,7 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                 </div>
                 {cliente.fechaReseña && (
                   <span className="text-[10px] text-zinc-500">
-                    {new Date(cliente.fechaReseña).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })}
+                    {new Date(cliente.fechaReseña).toLocaleDateString("es-EC", { timeZone: "America/Guayaquil", day: "2-digit", month: "short" })}
                   </span>
                 )}
               </div>
@@ -1361,7 +1363,7 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                 </div>
                 {cliente.fechaCompra && (
                   <span className="text-[10px] text-zinc-500">
-                    {new Date(cliente.fechaCompra).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })}
+                    {new Date(cliente.fechaCompra).toLocaleDateString("es-EC", { timeZone: "America/Guayaquil", day: "2-digit", month: "short" })}
                   </span>
                 )}
               </div>
@@ -1381,7 +1383,7 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                       >
                         <div className="flex justify-between items-center mb-1">
                           <span className="text-[10px] text-zinc-500">
-                            {new Date(seg.fechaProg).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                            {new Date(seg.fechaProg).toLocaleDateString("es-EC", { timeZone: "America/Guayaquil", day: "2-digit", month: "short", year: "numeric" })}
                           </span>
                           {seg.estado && (
                             <span className={`text-[10px] px-2 py-0.5 rounded ${
@@ -1399,7 +1401,7 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                         {expandedNoteId === seg.id && (
                           <div className="mt-2 pt-2 border-t border-zinc-850/50">
                             <p className="text-[10px] text-zinc-500">
-                              Fecha programada: {new Date(seg.fechaProg).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              Fecha programada: {new Date(seg.fechaProg).toLocaleString("es-EC", { timeZone: "America/Guayaquil", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}
                             </p>
                           </div>
                         )}

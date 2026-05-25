@@ -33,10 +33,39 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
 
+  const getEcuadorLocalDateString = (dateInput: Date | string) => {
+    const d = new Date(dateInput);
+    const guayaquilStr = d.toLocaleString("en-US", {
+      timeZone: "America/Guayaquil",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const [month, day, year] = guayaquilStr.split("/");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getLocalDateStringFromDateObject = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getEcuadorHour = (dateInput: Date | string) => {
+    const d = new Date(dateInput);
+    const guayaquilStr = d.toLocaleString("en-US", {
+      timeZone: "America/Guayaquil",
+      hour: "numeric",
+      hour12: false,
+    });
+    return Number(guayaquilStr);
+  };
+
   const getAvisosForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = getLocalDateStringFromDateObject(date);
     return avisos.filter(aviso => {
-      const avisoDate = new Date(aviso.fechaProg).toISOString().split('T')[0];
+      const avisoDate = getEcuadorLocalDateString(aviso.fechaProg);
       return avisoDate === dateStr;
     });
   };
@@ -151,7 +180,7 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
             <Clock size={14} className="text-zinc-400" />
-            Horarios del {selectedDate.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+            Horarios del {selectedDate.toLocaleDateString("es-EC", { day: "2-digit", month: "short", year: "numeric" })}
           </h4>
           <button
             onClick={() => setSelectedDate(null)}
@@ -164,7 +193,7 @@ export default function AvisosCalendar({ avisos, onDateClick }: AvisosCalendarPr
         <div className="space-y-1 max-h-64 overflow-y-auto">
           {hours.map(hour => {
             const avisosEnHora = avisosDelDia.filter(aviso => {
-              const avisoHour = new Date(aviso.fechaProg).getHours();
+              const avisoHour = getEcuadorHour(aviso.fechaProg);
               return avisoHour === hour;
             });
 
