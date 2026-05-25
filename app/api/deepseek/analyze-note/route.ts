@@ -154,12 +154,25 @@ Si NO tiene fecha/hora, response: respuesta breve (máximo 30 palabras).`,
       }
 
       // Crear aviso solo si no hay conflictos
+      // Determinar el número de teléfono según el asesor
+      const recontactPhones = process.env.RECONTACTO_PHONES || "";
+      const phonesArray = recontactPhones.split(",");
+      const cristhopherPhone = phonesArray[0]?.trim() || "";
+      const cesarPhone = phonesArray[1]?.trim() || "";
+      
+      // Usar el número del cliente si tiene, si no usar el del asesor actual
+      let telefono = cliente.telefono || "";
+      if (!telefono) {
+        // Si no hay teléfono del cliente, usar el del asesor (por defecto Cristhopher)
+        telefono = cristhopherPhone;
+      }
+      
       const aviso = await prisma.aviso.create({
         data: {
           clienteId: clienteId,
           titulo: analysis.type || "Seguimiento",
           mensaje: analysis.summary || nota,
-          telefono: cliente.telefono || "",
+          telefono: telefono,
           fechaProg: newDateTime,
           estado: "PENDIENTE",
           creadoPor: "deepseek-note-analyzer",
