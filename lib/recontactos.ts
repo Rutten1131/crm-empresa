@@ -62,7 +62,7 @@ export async function crearAvisosRecontacto({
 
   for (const phone of phones) {
     for (const r of recontactos) {
-      // Construir líneas de información del cliente
+      // Construir líneas de información del cliente (sin teléfono)
       const lineaNegocio = nombreNegocio
         ? `\n🏢 Negocio: ${nombreNegocio}`
         : "";
@@ -71,8 +71,7 @@ export async function crearAvisosRecontacto({
         : "";
 
       const mensaje =
-        `🔔 Recontacto #${r.num} — ${nombre}\n` +
-        `📱 Tel: ${telefono || "Sin teléfono"}` +
+        `🔔 Recontacto #${r.num} — ${nombre}` +
         lineaNegocio +
         lineaPlan +
         `\n\nEste es el ${r.ordinal} recordatorio de seguimiento para este lead.`;
