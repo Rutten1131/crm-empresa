@@ -119,8 +119,8 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      // Enviar aviso en el momento exacto (0 minutos o menos, pero más de -5)
-      if (tiempoRestanteMin <= 0 && tiempoRestanteMin > -5 && aviso.estado === "PENDIENTE") {
+      // Enviar aviso en el momento exacto (0 minutos o menos, pero más de -60)
+      if (tiempoRestanteMin <= 0 && tiempoRestanteMin > -60 && aviso.estado === "PENDIENTE") {
         const mensaje = `🔔 *AVISO AHORA*\n\n` +
           `📌 *${aviso.titulo}*\n` +
           `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
