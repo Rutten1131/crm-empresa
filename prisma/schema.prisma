@@ -1,9 +1,134 @@
 generator client {
-  provider   = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "mysql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  nombre    String?
+  email     String?  @unique
+  telefono  String?
+  role      String?
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model Cliente {
+  id                     String        @id @default(cuid())
+  nombre                 String
+  telefono               String?
+  whatsapp               String?
+  nombre_negocio         String?
+  email                  String?
+  estado                 EstadoCliente @default(PENDIENTE)
+  fuenteExterna          String?
+  cuentaPrueba           Boolean       @default(true)
+  fechaIngreso           DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  tipoCliente            TipoCliente?  @default(PAGINA_WEB)
+  plan                   Plan?
+  demoPresentada         Boolean       @default(false)
+  fechaDemo              DateTime?
+  demoReseña            DemoReseña?
+  fechaReseña           DateTime?
+  notaReseña            String?
+  notasInicialesCRM      String?
+  fechaNotasInicialesCRM DateTime?
+  compraRealizada        Boolean       @default(false)
+  fechaCompra            DateTime?
+  montoTotal             Decimal?      @db.Decimal(10, 2)
+  avisos                 Aviso[]
+  notas                  Nota[]
+  pagos                  Pago[]
+  seguimientos           Seguimiento[]
+}
+
+model Seguimiento {
+  id         String            @id @default(cuid())
+  clienteId  String
+  dia        Int
+  estado     EstadoSeguimiento @default(PENDIENTE)
+  fechaProg  DateTime
+  fechaEnvio DateTime?
+  mensaje    String?
+  createdAt  DateTime          @default(now())
+  cliente    Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId], map: "Seguimiento_clienteId_fkey")
+}
+
+model Transaccion {
+  id          String          @id @default(cuid())
+  tipo        TipoTransaccion
+  monto       Decimal         @db.Decimal(10, 2)
+  descripcion String
+  categoria   String
+  fecha       DateTime        @default(now())
+  creadoPor   String
+  createdAt   DateTime        @default(now())
+}
+
+model Aviso {
+  id                       String      @id @default(cuid())
+  titulo                   String
+  mensaje                  String
+  telefono                 String
+  fechaProg                DateTime
+  estado                   EstadoAviso @default(PENDIENTE)
+  clienteId                String?
+  creadoPor                String
+  createdAt                DateTime    @default(now())
+  recordatorio1hEnviado    Boolean     @default(false)
+  recordatorio30minEnviado Boolean     @default(false)
+  recordatorio10minEnviado Boolean     @default(false)
+  cliente                  Cliente?    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId], map: "Aviso_clienteId_fkey")
+}
+
+model Configuracion {
+  key   String @id
+  value String @db.Text
+}
+
+model Nota {
+  id        String   @id @default(cuid())
+  clienteId String
+  contenido String   @db.Text
+  tipo      String?
+  fechaNota DateTime @default(now())
+  analizado Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId], map: "Nota_clienteId_fkey")
+}
+
+model Pago {
+  id        String     @id @default(cuid())
+  clienteId String
+  monto     Decimal    @db.Decimal(10, 2)
+  metodo    MetodoPago
+  estado    EstadoPago @default(PENDIENTE)
+  fechaPago DateTime?
+  notas     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  cliente   Cliente    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId], map: "Pago_clienteId_fkey")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  role      String
+  content   String   @db.Text
+  asesor    String
+  createdAt DateTime @default(now())
 }
 
 enum EstadoCliente {
@@ -34,7 +159,7 @@ enum DemoReseña {
 enum EstadoSeguimiento {
   PENDIENTE
   ENVIADO
-  OMITIDO   // cliente ya pagó/cerrado antes de este hito
+  OMITIDO
 }
 
 enum TipoTransaccion {
@@ -58,127 +183,4 @@ enum EstadoPago {
   PENDIENTE
   COMPLETADO
   CANCELADO
-}
-
-model User {
-  id        String   @id @default(cuid())
-  nombre    String?   // user full name
-  email     String?   @unique   // user email address
-  telefono   String?
-  role        String?   // user role (ADMIN, USER)
-  password  String   // bcrypt hash
-  createdAt DateTime @default(now())
-}
-
-
-
-model Cliente {
-  id              String          @id @default(cuid())
-  nombre          String
-  telefono        String?         // número de teléfono del cliente
-  whatsapp        String?   // WhatsApp number
-  nombre_negocio   String?   // nombre del negocio
-
-  email           String?
-  estado          EstadoCliente   @default(PENDIENTE)
-  fuenteExterna   String?         // ID del cliente en el proyecto externo
-  cuentaPrueba    Boolean         @default(true)
-  fechaIngreso    DateTime        @default(now())
-  seguimientos    Seguimiento[]
-  avisos          Aviso[]
-  notas           Nota[]
-  updatedAt       DateTime        @updatedAt
-  
-  // Tipo de cliente/fuente
-  tipoCliente     TipoCliente?    @default(PAGINA_WEB)
-  
-  // Plan y precio del producto
-  plan            Plan?           // Plan de ActivaQR (basic, business, catalog)
-  
-  // Nuevo flujo de seguimiento manual
-  demoPresentada  Boolean         @default(false)
-  fechaDemo       DateTime?
-  demoReseña      DemoReseña?
-  fechaReseña     DateTime?
-  notaReseña      String?
-  notasInicialesCRM String?       // Notas iniciales para CRM (Paso 1)
-  fechaNotasInicialesCRM DateTime?
-  compraRealizada Boolean         @default(false)
-  fechaCompra     DateTime?
-  montoTotal      Decimal?        @db.Decimal(10,2)
-  pagos           Pago[]
-}
-
-model Seguimiento {
-  id          String            @id @default(cuid())
-  clienteId   String
-  cliente     Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  dia         Int               // 3, 7 o 15
-  estado      EstadoSeguimiento @default(PENDIENTE)
-  fechaProg   DateTime          // fecha en que debe enviarse
-  fechaEnvio  DateTime?         // fecha real de envío
-  mensaje     String?           // mensaje enviado
-  createdAt   DateTime          @default(now())
-}
-
-model Transaccion {
-  id          String              @id @default(cuid())
-  tipo        TipoTransaccion
-  monto       Decimal             @db.Decimal(10,2)
-  descripcion String
-  categoria   String
-  fecha       DateTime            @default(now())
-  creadoPor   String              // userId
-  createdAt   DateTime            @default(now())
-}
-
-model Aviso {
-  id          String        @id @default(cuid())
-  titulo      String
-  mensaje     String
-  telefono    String        // número destino WhatsApp
-  fechaProg   DateTime
-  estado      EstadoAviso   @default(PENDIENTE)
-  clienteId   String?       // ID del cliente relacionado
-  cliente     Cliente?      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  creadoPor   String        // userId (usar este campo para identificar al asesor: Cesar o Cristhopher)
-  createdAt   DateTime      @default(now())
-}
-
-model Configuracion {
-  key   String @id
-  value String @db.Text
-}
-
-model Nota {
-  id          String        @id @default(cuid())
-  clienteId   String
-  cliente     Cliente       @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  contenido   String        @db.Text
-  tipo        String?       // tipo de nota (RESEÑA, INICIAL, PAGO, MANUAL)
-  fechaNota   DateTime      @default(now())
-  analizado   Boolean       @default(false) // si ya fue analizado por DeepSeek
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-}
-
-model Pago {
-  id          String          @id @default(cuid())
-  clienteId   String
-  cliente     Cliente         @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  monto       Decimal         @db.Decimal(10,2)
-  metodo      MetodoPago
-  estado      EstadoPago      @default(PENDIENTE)
-  fechaPago   DateTime?       // fecha real del pago
-  notas       String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-}
-
-model ChatMessage {
-  id        String   @id @default(cuid())
-  role      String   // "user" o "assistant"
-  content   String   @db.Text
-  asesor    String   // "Cesar" o "Cristhopher"
-  createdAt DateTime @default(now())
 }

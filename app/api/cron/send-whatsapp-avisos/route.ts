@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatEcuadorDateShort, formatEcuadorTimeShort } from "@/lib/timezone";
+import { enviarWhatsApp } from "@/lib/evolution";
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,15 +31,16 @@ export async function GET(request: NextRequest) {
     
     const ecuadorTime = new Date(`${year}-${mm}-${dd}T${hh}:${minStr}:${secStr}.000-05:00`);
     
-    // Obtener avisos pendientes para hoy (UTC-5)
+    // Obtener avisos pendientes para hoy y próximos 7 días (UTC-5)
     const startOfDay = new Date(`${year}-${mm}-${dd}T00:00:00.000-05:00`);
-    const endOfDay = new Date(`${year}-${mm}-${dd}T23:59:59.999-05:00`);
+    const endOfPeriod = new Date(`${year}-${mm}-${dd}T23:59:59.999-05:00`);
+    endOfPeriod.setDate(endOfPeriod.getDate() + 7);
     
     const avisos = await prisma.aviso.findMany({
       where: {
         fechaProg: {
           gte: startOfDay,
-          lte: endOfDay,
+          lte: endOfPeriod,
         },
         estado: "PENDIENTE",
       },
@@ -47,64 +49,102 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Agrupar avisos por asesor
-    const avisosPorAsesor: { [key: string]: any[] } = {};
-    avisos.forEach(aviso => {
-      const asesor = aviso.creadoPor || "default";
-      if (!avisosPorAsesor[asesor]) {
-        avisosPorAsesor[asesor] = [];
-      }
-      avisosPorAsesor[asesor].push(aviso);
-    });
-
-    // Enviar avisos por asesor
     const resultados: any[] = [];
     
-    for (const [asesor, avisosAsesor] of Object.entries(avisosPorAsesor)) {
-      // Crear mensaje resumen para el asesor
-      let mensaje = `📅 *Avisos del día ${formatEcuadorDateShort(ecuadorTime)}*\n\n`;
+    // Procesar cada aviso para enviar recordatorios
+    for (const aviso of avisos) {
+      const tiempoRestanteMs = aviso.fechaProg.getTime() - ecuadorTime.getTime();
+      const tiempoRestanteMin = Math.floor(tiempoRestanteMs / (1000 * 60));
       
-      avisosAsesor.forEach((aviso, index) => {
-        const hora = formatEcuadorTimeShort(aviso.fechaProg);
+      // Enviar recordatorio de 1 hora antes (60 minutos o menos, pero más de 30)
+      if (tiempoRestanteMin <= 60 && tiempoRestanteMin > 30 && !aviso.recordatorio1hEnviado) {
+        const mensaje = `⏰ *RECORDATORIO 1H ANTES*\n\n` +
+          `📌 *${aviso.titulo}*\n` +
+          `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
+          `📝 ${aviso.mensaje}\n\n` +
+          `Te faltan 1 hora para este aviso.`;
         
-        mensaje += `${index + 1}. *${aviso.titulo}*\n`;
-        mensaje += `   🕐 ${hora}\n`;
-        mensaje += `   📝 ${aviso.mensaje}\n`;
-        if (aviso.telefono) {
-          mensaje += `   📱 ${aviso.telefono}\n`;
+        const resultado = await enviarWhatsApp(aviso.telefono, mensaje);
+        
+        if (resultado.success) {
+          await prisma.aviso.update({
+            where: { id: aviso.id },
+            data: { recordatorio1hEnviado: true },
+          });
+          resultados.push({ avisoId: aviso.id, tipo: "1h", enviado: true });
+        } else {
+          resultados.push({ avisoId: aviso.id, tipo: "1h", enviado: false, error: resultado.error });
         }
-        mensaje += "\n";
-      });
+      }
       
-      mensaje += `💡 *Recordatorios:*\n`;
-      mensaje += `• 1 hora antes\n`;
-      mensaje += `• 30 minutos antes\n`;
-      mensaje += `• 10 minutos antes\n`;
+      // Enviar recordatorio de 30 minutos antes (30 minutos o menos, pero más de 10)
+      if (tiempoRestanteMin <= 30 && tiempoRestanteMin > 10 && !aviso.recordatorio30minEnviado) {
+        const mensaje = `⏰ *RECORDATORIO 30 MIN ANTES*\n\n` +
+          `📌 *${aviso.titulo}*\n` +
+          `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
+          `📝 ${aviso.mensaje}\n\n` +
+          `Te faltan 30 minutos para este aviso.`;
+        
+        const resultado = await enviarWhatsApp(aviso.telefono, mensaje);
+        
+        if (resultado.success) {
+          await prisma.aviso.update({
+            where: { id: aviso.id },
+            data: { recordatorio30minEnviado: true },
+          });
+          resultados.push({ avisoId: aviso.id, tipo: "30min", enviado: true });
+        } else {
+          resultados.push({ avisoId: aviso.id, tipo: "30min", enviado: false, error: resultado.error });
+        }
+      }
       
-      // Aquí enviarías el mensaje por WhatsApp usando tu API de WhatsApp
-      // Por ahora, solo lo simulamos
-      console.log(`Enviando mensaje a ${asesor}:`, mensaje);
+      // Enviar recordatorio de 10 minutos antes (10 minutos o menos, pero más de 0)
+      if (tiempoRestanteMin <= 10 && tiempoRestanteMin > 0 && !aviso.recordatorio10minEnviado) {
+        const mensaje = `⏰ *RECORDATORIO 10 MIN ANTES*\n\n` +
+          `📌 *${aviso.titulo}*\n` +
+          `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
+          `📝 ${aviso.mensaje}\n\n` +
+          `Te faltan 10 minutos para este aviso.`;
+        
+        const resultado = await enviarWhatsApp(aviso.telefono, mensaje);
+        
+        if (resultado.success) {
+          await prisma.aviso.update({
+            where: { id: aviso.id },
+            data: { recordatorio10minEnviado: true },
+          });
+          resultados.push({ avisoId: aviso.id, tipo: "10min", enviado: true });
+        } else {
+          resultados.push({ avisoId: aviso.id, tipo: "10min", enviado: false, error: resultado.error });
+        }
+      }
       
-      resultados.push({
-        asesor,
-        cantidadAvisos: avisosAsesor.length,
-        mensaje,
-        enviado: true, // Cambiar a false si falla el envío
-      });
+      // Enviar aviso en el momento exacto (0 minutos o menos, pero más de -5)
+      if (tiempoRestanteMin <= 0 && tiempoRestanteMin > -5 && aviso.estado === "PENDIENTE") {
+        const mensaje = `🔔 *AVISO AHORA*\n\n` +
+          `📌 *${aviso.titulo}*\n` +
+          `🕐 ${formatEcuadorTimeShort(aviso.fechaProg)}\n` +
+          `📝 ${aviso.mensaje}`;
+        
+        const resultado = await enviarWhatsApp(aviso.telefono, mensaje);
+        
+        if (resultado.success) {
+          await prisma.aviso.update({
+            where: { id: aviso.id },
+            data: { estado: "ENVIADO" },
+          });
+          resultados.push({ avisoId: aviso.id, tipo: "aviso", enviado: true });
+        } else {
+          resultados.push({ avisoId: aviso.id, tipo: "aviso", enviado: false, error: resultado.error });
+        }
+      }
     }
-
-    // Marcar avisos como enviados (opcional)
-    // await prisma.aviso.updateMany({
-    //   where: {
-    //     id: { in: avisos.map(a => a.id) },
-    //   },
-    //   data: { estado: "ENVIADO" },
-    // });
 
     return NextResponse.json({
       success: true,
       fecha: ecuadorTime.toISOString(),
       totalAvisos: avisos.length,
+      recordatoriosEnviados: resultados.length,
       resultados,
     });
   } catch (error: any) {
