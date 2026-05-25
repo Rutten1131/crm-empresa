@@ -166,7 +166,7 @@ Si NO tiene fecha/hora, response: respuesta breve (máximo 30 palabras).`,
         data: {
           clienteId: clienteId,
           titulo: analysis.type || "Seguimiento",
-          mensaje: `Cliente (${cliente.nombre}) - ${cliente.telefono || "Sin teléfono"}\n\n${analysis.summary || nota}`,
+          mensaje: `Cliente (${cliente.nombre}) - ${cliente.telefono || "Sin teléfono"}\n\n${nota}`,
           telefono: telefono,
           fechaProg: newDateTime,
           estado: "PENDIENTE",
