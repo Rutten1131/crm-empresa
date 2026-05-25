@@ -107,7 +107,7 @@ Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
           data: {
             titulo: result.titulo,
             mensaje: result.mensaje || result.titulo,
-            telefono: result.telefono || "",
+            telefono: result.telefono || process.env.DEFAULT_WHATSAPP_NUMBER || "",
             fechaProg: nuevaFecha,
             estado: "PENDIENTE",
             creadoPor: asesor || "deepseek-chat",
