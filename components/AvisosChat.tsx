@@ -1,12 +1,22 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User } from "lucide-react";
+import { Send, Loader2, Bot, User, Plus, MessageSquare, X } from "lucide-react";
 import MicrophoneButton from "./MicrophoneButton";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  _count: {
+    messages: number;
+  };
 }
 
 interface AvisosChatProps {
@@ -18,27 +28,56 @@ export default function AvisosChat({ onAvisoCreado, asesor }: AvisosChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [showSessions, setShowSessions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Cargar mensajes históricos al montar el componente
+  // Cargar sesiones al montar el componente
   useEffect(() => {
     if (asesor) {
-      loadMessages();
+      loadSessions();
     }
   }, [asesor]);
+
+  // Cargar mensajes de la sesión actual
+  useEffect(() => {
+    if (asesor && currentSessionId) {
+      loadMessages(currentSessionId);
+    } else if (asesor && !currentSessionId) {
+      // Si no hay sesión, crear una nueva automáticamente
+      createNewSession();
+    }
+  }, [currentSessionId, asesor]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Comentado para no hacer scroll automático al final
-  // useEffect(() => {
-  //   scrollToBottom();
-  // }, [messages]);
+  // Scroll automático al final cuando cambian los mensajes
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
-  const loadMessages = async () => {
+  const loadSessions = async () => {
     try {
-      const response = await fetch(`/api/chat-messages?asesor=${asesor}`);
+      const response = await fetch(`/api/chat-sessions?asesor=${asesor}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(data);
+        // Si hay sesiones, cargar la más reciente
+        if (data.length > 0 && !currentSessionId) {
+          setCurrentSessionId(data[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Error al cargar sesiones:", error);
+    }
+  };
+
+  const loadMessages = async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/chat-messages?asesor=${asesor}&sessionId=${sessionId}`);
       if (response.ok) {
         const data = await response.json();
         setMessages(data);
@@ -48,12 +87,31 @@ export default function AvisosChat({ onAvisoCreado, asesor }: AvisosChatProps) {
     }
   };
 
+  const createNewSession = async () => {
+    try {
+      const response = await fetch("/api/chat-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asesor, title: "Nuevo chat" }),
+      });
+      if (response.ok) {
+        const newSession = await response.json();
+        setCurrentSessionId(newSession.id);
+        setMessages([]);
+        setShowSessions(false);
+        loadSessions();
+      }
+    } catch (error) {
+      console.error("Error al crear sesión:", error);
+    }
+  };
+
   const saveMessage = async (role: "user" | "assistant", content: string) => {
     try {
       await fetch("/api/chat-messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, content, asesor }),
+        body: JSON.stringify({ role, content, asesor, sessionId: currentSessionId }),
       });
     } catch (error) {
       console.error("Error al guardar mensaje:", error);
@@ -87,6 +145,9 @@ export default function AvisosChat({ onAvisoCreado, asesor }: AvisosChatProps) {
       if (data.avisoCreado) {
         onAvisoCreado();
       }
+      
+      // Actualizar lista de sesiones después de crear un aviso
+      loadSessions();
     } catch (error: any) {
       setMessages(prev => [...prev, { role: "assistant", content: `Error: ${error.message}` }]);
     } finally {
@@ -94,12 +155,61 @@ export default function AvisosChat({ onAvisoCreado, asesor }: AvisosChatProps) {
     }
   };
 
+  const handleSelectSession = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+    setShowSessions(false);
+  };
+
   return (
     <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <Bot size={18} className="text-purple-400" />
-        <h3 className="text-sm font-semibold text-zinc-200">Asistente de Avisos</h3>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Bot size={18} className="text-purple-400" />
+          <h3 className="text-sm font-semibold text-zinc-200">Asistente de Avisos</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSessions(!showSessions)}
+            className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
+            title="Ver chats guardados"
+          >
+            <MessageSquare size={16} className="text-zinc-400" />
+          </button>
+          <button
+            onClick={createNewSession}
+            className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
+            title="Nuevo chat"
+          >
+            <Plus size={16} className="text-zinc-400" />
+          </button>
+        </div>
       </div>
+
+      {/* Lista de sesiones */}
+      {showSessions && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 space-y-2 max-h-40 overflow-y-auto">
+          {sessions.length === 0 ? (
+            <p className="text-xs text-zinc-500 text-center py-2">No hay chats guardados</p>
+          ) : (
+            sessions.map((session) => (
+              <button
+                key={session.id}
+                onClick={() => handleSelectSession(session.id)}
+                className={`w-full text-left p-2 rounded-lg transition-colors ${
+                  currentSessionId === session.id
+                    ? "bg-purple-500/20 text-purple-300"
+                    : "hover:bg-zinc-800 text-zinc-300"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs truncate flex-1">{session.title}</span>
+                  <span className="text-xs text-zinc-500 ml-2">{session._count.messages}</span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
 
       {/* Chat Messages */}
       <div className="h-80 overflow-y-auto space-y-4 pr-2">
