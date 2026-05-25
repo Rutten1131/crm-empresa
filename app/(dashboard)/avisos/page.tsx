@@ -190,13 +190,15 @@ export default function AvisosPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Calendario */}
-        <div className="lg:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Calendario - Más grande */}
+        <div className="lg:col-span-2">
           <AvisosCalendar avisos={avisos} onDateClick={handleDateClick} asesor={asesorSeleccionado} />
-          
-          {/* Avisos de Hoy */}
-          <div className="mt-6 bg-zinc-950 border border-zinc-900 rounded-3xl p-6">
+        </div>
+
+        {/* Avisos de Hoy */}
+        <div className="lg:col-span-1">
+          <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6">
             <h3 className="text-sm font-semibold text-zinc-200 mb-4 flex items-center gap-2">
               <Calendar size={16} className="text-zinc-400" />
               Avisos de Hoy
@@ -235,278 +237,119 @@ export default function AvisosPage() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Formulario y Listado */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Chat de Avisos */}
-          <AvisosChat onAvisoCreado={fetchAvisos} asesor={asesorSeleccionado} />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Formulario de Creación */}
-            <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 space-y-6">
-              <div>
-                <h2 className="text-base font-semibold text-zinc-200 tracking-tight">Programar Nuevo Aviso</h2>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Rellena los datos para agendar el envío de WhatsApp.
-                </p>
-              </div>
+      {/* Listado de Avisos - Cuadritos Pequeños */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-zinc-200">
+            {selectedDate 
+              ? `Avisos para ${selectedDate.toLocaleDateString("es-EC", {
+                  timeZone: "America/Guayaquil",
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric"
+                })}`
+              : "Todos los Avisos"
+            }
+          </h3>
+          <span className="text-xs text-zinc-500">
+            {avisosPorFecha.length} avisos
+          </span>
+        </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {error && (
-                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-2xl text-xs text-red-400 font-medium animate-fade-in">
-                    {error}
-                  </div>
-                )}
-                {success && (
-                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-xs text-emerald-400 font-medium animate-fade-in">
-                    {success}
-                  </div>
-                )}
-
-                {/* Título */}
-                <div className="space-y-1.5">
-                  <label htmlFor="titulo" className="text-xs font-semibold text-zinc-400">
-                    Título del Aviso
-                  </label>
-                  <input
-                    id="titulo"
-                    type="text"
-                    required
-                    placeholder="Ej. Recordatorio de reunión"
-                    value={titulo}
-                    onChange={(e) => setTitulo(e.target.value)}
-                    className="w-full px-4 py-3 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-2xl text-xs text-zinc-200 placeholder-zinc-600 outline-none transition-colors"
-                  />
-                </div>
-
-                {/* Teléfono */}
-                <div className="space-y-1.5">
-                  <label htmlFor="telefono" className="text-xs font-semibold text-zinc-400">
-                    Teléfono de Destino (WhatsApp)
-                  </label>
-                  <input
-                    id="telefono"
-                    type="tel"
-                    required
-                    placeholder="Ej. +52 1 55 1234 5678"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                    className="w-full px-4 py-3 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-2xl text-xs text-zinc-200 placeholder-zinc-600 outline-none transition-colors font-mono"
-                  />
-                </div>
-
-                {/* Fecha Programada */}
-                <div className="space-y-1.5">
-                  <label htmlFor="fechaProg" className="text-xs font-semibold text-zinc-400">
-                    Fecha y Hora de Envío
-                  </label>
-                  <input
-                    id="fechaProg"
-                    type="datetime-local"
-                    required
-                    value={fechaProg}
-                    onChange={(e) => setFechaProg(e.target.value)}
-                    className="w-full px-4 py-3 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-2xl text-xs text-zinc-200 outline-none transition-colors cursor-pointer"
-                  />
-                </div>
-
-                {/* Mensaje */}
-                <div className="space-y-1.5">
-                  <label htmlFor="mensaje" className="text-xs font-semibold text-zinc-400">
-                    Mensaje
-                  </label>
-                  <textarea
-                    id="mensaje"
-                    required
-                    rows={3}
-                    placeholder="Escribe el mensaje aquí..."
-                    value={mensaje}
-                    onChange={(e) => setMensaje(e.target.value)}
-                    className="w-full px-4 py-3 bg-zinc-900 border border-zinc-850 hover:border-zinc-800 focus:border-zinc-700 rounded-2xl text-xs text-zinc-200 placeholder-zinc-600 outline-none transition-colors resize-none leading-relaxed"
-                  />
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-950 text-xs font-bold rounded-2xl transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
-                >
-                  {submitting ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <>
-                      <Send size={14} />
-                      Programar Aviso
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* Filtros */}
-            <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 space-y-4">
-              <div>
-                <h3 className="text-base font-semibold text-zinc-200 tracking-tight">Filtrar Avisos</h3>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Filtra por estado o fecha seleccionada.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { label: "Todos", value: "" },
-                  { label: "Pendientes", value: EstadoAviso.PENDIENTE },
-                  { label: "Enviados", value: EstadoAviso.ENVIADO },
-                  { label: "Fallidos", value: EstadoAviso.FALLIDO },
-                ].map((filtro) => (
-                  <button
-                    key={filtro.value}
-                    onClick={() => setFiltroEstado(filtro.value)}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                      filtroEstado === filtro.value
-                        ? "bg-zinc-100 text-zinc-950"
-                        : "bg-zinc-900 border border-zinc-850 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                    }`}
-                  >
-                    {filtro.label}
-                  </button>
-                ))}
-              </div>
-
-              {selectedDate && (
-                <div className="pt-4 border-t border-zinc-850">
-                  <p className="text-xs text-zinc-500 mb-2">Fecha seleccionada:</p>
-                  <button
-                    onClick={() => setSelectedDate(null)}
-                    className="px-3 py-1.5 bg-zinc-800 text-zinc-200 text-xs font-bold rounded-xl transition-all cursor-pointer hover:bg-zinc-700"
-                  >
-                    {selectedDate.toLocaleDateString("es-EC", {
-                      timeZone: "America/Guayaquil",
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric"
-                    })}
-                    <span className="ml-2 text-zinc-500">✕</span>
-                  </button>
-                </div>
-              )}
-            </div>
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <div key={i} className="h-24 w-full bg-zinc-950 border border-zinc-900 rounded-2xl animate-pulse" />
+            ))}
           </div>
+        ) : avisosPorFecha.length === 0 ? (
+          <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-12 text-center text-zinc-500 text-sm">
+            No hay avisos en este filtro.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {avisosPorFecha.map((a) => {
+              const badge = getAvisoBadge(a.estado);
+              const fechaProgFormatted = new Date(a.fechaProg).toLocaleDateString("es-EC", {
+                timeZone: "America/Guayaquil",
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+              });
+              const isExpandido = avisoExpandido === a.id;
 
-          {/* Listado de Avisos - Cuadritos Pequeños */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-zinc-200">
-                {selectedDate 
-                  ? `Avisos para ${selectedDate.toLocaleDateString("es-EC", {
-                      timeZone: "America/Guayaquil",
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric"
-                    })}`
-                  : "Todos los Avisos"
-                }
-              </h3>
-              <span className="text-xs text-zinc-500">
-                {avisosPorFecha.length} avisos
-              </span>
-            </div>
-
-            {loading ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <div key={i} className="h-24 w-full bg-zinc-950 border border-zinc-900 rounded-2xl animate-pulse" />
-                ))}
-              </div>
-            ) : avisosPorFecha.length === 0 ? (
-              <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-12 text-center text-zinc-500 text-sm">
-                No hay avisos en este filtro.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {avisosPorFecha.map((a) => {
-                  const badge = getAvisoBadge(a.estado);
-                  const fechaProgFormatted = new Date(a.fechaProg).toLocaleDateString("es-EC", {
-                    timeZone: "America/Guayaquil",
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true
-                  });
-                  const isExpandido = avisoExpandido === a.id;
-
-                  return (
-                    <div
-                      key={a.id}
-                      onClick={() => setAvisoExpandido(isExpandido ? null : a.id)}
-                      className={`bg-zinc-950 border border-zinc-900 rounded-2xl p-4 space-y-3 transition-all cursor-pointer hover:border-zinc-800 group relative ${
-                        isExpandido ? "col-span-2 md:col-span-3 lg:col-span-4" : ""
-                      }`}
-                    >
-                      {/* Top Row */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-xs font-semibold text-zinc-200 truncate">{a.titulo}</h3>
-                          <div className="text-[10px] text-zinc-500 font-mono mt-1">
-                            {new Date(a.fechaProg).toLocaleTimeString("es-EC", {
-                              timeZone: "America/Guayaquil",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${badge.style}`}>
-                            {badge.text}
-                          </span>
-
-                          {a.estado === EstadoAviso.PENDIENTE && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(a.id);
-                              }}
-                              className="p-1.5 text-zinc-650 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-lg transition-all cursor-pointer"
-                              title="Cancelar Aviso"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          )}
-                        </div>
+              return (
+                <div
+                  key={a.id}
+                  onClick={() => setAvisoExpandido(isExpandido ? null : a.id)}
+                  className={`bg-zinc-950 border border-zinc-900 rounded-2xl p-4 space-y-3 transition-all cursor-pointer hover:border-zinc-800 group relative ${
+                    isExpandido ? "col-span-2 md:col-span-3 lg:col-span-4" : ""
+                  }`}
+                >
+                  {/* Top Row */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xs font-semibold text-zinc-200 truncate">{a.titulo}</h3>
+                      <div className="text-[10px] text-zinc-500 font-mono mt-1">
+                        {new Date(a.fechaProg).toLocaleTimeString("es-EC", {
+                          timeZone: "America/Guayaquil",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true
+                        })}
                       </div>
+                    </div>
 
-                      {/* Información expandida */}
-                      {isExpandido && (
-                        <div className="space-y-3 pt-3 border-t border-zinc-850">
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500 font-mono">
-                            <span className="flex items-center gap-1">
-                              <Phone size={12} />
-                              {a.telefono}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock size={12} />
-                              {fechaProgFormatted}
-                            </span>
-                          </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${badge.style}`}>
+                        {badge.text}
+                      </span>
 
-                          {/* Mensaje */}
-                          <div className="p-3 bg-zinc-900/40 border border-zinc-850/50 rounded-xl text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed">
-                            {a.mensaje}
-                          </div>
-                        </div>
+                      {a.estado === EstadoAviso.PENDIENTE && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(a.id);
+                          }}
+                          className="p-1.5 text-zinc-650 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-lg transition-all cursor-pointer"
+                          title="Cancelar Aviso"
+                        >
+                          <Trash2 size={12} />
+                        </button>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+
+                  {/* Información expandida */}
+                  {isExpandido && (
+                    <div className="space-y-3 pt-3 border-t border-zinc-850">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500 font-mono">
+                        <span className="flex items-center gap-1">
+                          <Phone size={12} />
+                          {a.telefono}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} />
+                          {fechaProgFormatted}
+                        </span>
+                      </div>
+
+                      {/* Mensaje */}
+                      <div className="p-3 bg-zinc-900/40 border border-zinc-850/50 rounded-xl text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed">
+                        {a.mensaje}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

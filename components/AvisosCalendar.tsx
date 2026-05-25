@@ -141,7 +141,7 @@ export default function AvisosCalendar({ avisos, onDateClick, asesor }: AvisosCa
 
     // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(<div key={`empty-${i}`} className="h-10" />);
+      days.push(<div key={`empty-${i}`} className="h-16" />);
     }
 
     // Days of the month
@@ -157,7 +157,7 @@ export default function AvisosCalendar({ avisos, onDateClick, asesor }: AvisosCa
           key={day}
           onClick={() => handleDateClick(date)}
           className={`
-            h-14 w-full rounded-xl flex flex-col items-center justify-center text-xs font-bold transition-all cursor-pointer relative
+            h-16 w-full rounded-xl flex flex-col items-center justify-center text-sm font-bold transition-all cursor-pointer relative
             ${isSelected 
               ? "bg-zinc-100 text-zinc-950" 
               : isToday 
@@ -170,13 +170,13 @@ export default function AvisosCalendar({ avisos, onDateClick, asesor }: AvisosCa
           {hasAvisos && (
             <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-1">
               {avisosDelDia.cristhopher.length > 0 && (
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                <div className="w-2 h-2 bg-emerald-500 rounded-full" />
               )}
               {avisosDelDia.cesar.length > 0 && (
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                <div className="w-2 h-2 bg-blue-500 rounded-full" />
               )}
               {avisosDelDia.otros.length > 0 && (
-                <div className="w-1.5 h-1.5 bg-zinc-500 rounded-full" />
+                <div className="w-2 h-2 bg-zinc-500 rounded-full" />
               )}
             </div>
           )}
