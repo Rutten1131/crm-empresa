@@ -108,6 +108,11 @@ Responde en formato JSON con esta estructura:
     });
 
     // Crear avisos basados en el análisis
+    // NUNCA usar teléfono del cliente, siempre usar RECONTACTO_PHONES
+    const recontactPhones = process.env.RECONTACTO_PHONES || "";
+    const phonesArray = recontactPhones.split(",");
+    const cristhopherPhone = phonesArray[0]?.trim() || "";
+    
     const avisosCreados = [];
     for (const tarea of analysis.tareas) {
       if (tarea.fecha) {
@@ -116,8 +121,8 @@ Responde en formato JSON con esta estructura:
         const aviso = await prisma.aviso.create({
           data: {
             titulo: tarea.descripcion,
-            mensaje: `Tarea para ${cliente.nombre}: ${tarea.descripcion}\nPrioridad: ${tarea.prioridad}\nTipo: ${tarea.tipo}`,
-            telefono: cliente.whatsapp || cliente.telefono || "",
+            mensaje: `Tarea para ${cliente.nombre}: ${tarea.descripcion}\nPrioridad: ${tarea.prioridad}\nTipo: ${tarea.tipo}\n📱 Tel: ${cliente.telefono || "Sin teléfono"}`,
+            telefono: cristhopherPhone,
             fechaProg: fechaTarea,
             // @ts-ignore
             clienteId: clienteId,

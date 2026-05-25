@@ -44,17 +44,22 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { titulo, mensaje, telefono, fechaProg } = body;
+    const { titulo, mensaje, fechaProg } = body;
 
-    if (!titulo || !mensaje || !telefono || !fechaProg) {
+    if (!titulo || !mensaje || !fechaProg) {
       return NextResponse.json(
-        { error: "Faltan campos obligatorios: titulo, mensaje, telefono y fechaProg" },
+        { error: "Faltan campos obligatorios: titulo, mensaje y fechaProg" },
         { status: 400 }
       );
     }
 
-    // Normalizar el teléfono (mantener solo números y +)
-    const telefonoNormalizado = telefono.replace(/[^\d+]/g, "");
+    // NUNCA usar teléfono del usuario, siempre usar RECONTACTO_PHONES
+    const recontactPhones = process.env.RECONTACTO_PHONES || "";
+    const phonesArray = recontactPhones.split(",");
+    const cristhopherPhone = phonesArray[0]?.trim() || "";
+    
+    // Siempre usar el número de Cristhopher (por defecto) para avisos manuales
+    const telefonoNormalizado = cristhopherPhone;
 
     // Verificar conflictos de horarios (margen de 15 minutos)
     const nuevaFecha = parseEcuadorStringToDate(fechaProg);
