@@ -16,7 +16,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const asesor = searchParams.get("asesor");
 
-    const whereClause = asesor ? { creadoPor: asesor } : {};
+    let whereClause = {};
+    if (asesor) {
+      // Incluir avisos del asesor y avisos del sistema (deepseek-note-analyzer, deepseek-ai)
+      whereClause = {
+        OR: [
+          { creadoPor: asesor },
+          { creadoPor: "deepseek-note-analyzer" },
+          { creadoPor: "deepseek-ai" },
+          { creadoPor: "system" },
+        ],
+      };
+    }
 
     const avisos = await prisma.aviso.findMany({
       where: whereClause,
