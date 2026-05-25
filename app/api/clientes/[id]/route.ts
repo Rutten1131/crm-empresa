@@ -80,6 +80,7 @@ export async function PATCH(
         nombre: cliente.nombre,
         telefono: cliente.telefono,
         nombreNegocio: cliente.nombre_negocio,
+        plan: cliente.plan,
       });
 
       return NextResponse.json(cliente);

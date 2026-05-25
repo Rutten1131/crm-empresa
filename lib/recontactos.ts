@@ -14,6 +14,7 @@ interface RecontactoParams {
   nombre: string;
   telefono?: string | null;
   nombreNegocio?: string | null;
+  plan?: string | null;
 }
 
 /**
@@ -31,6 +32,7 @@ export async function crearAvisosRecontacto({
   nombre,
   telefono,
   nombreNegocio,
+  plan,
 }: RecontactoParams): Promise<void> {
   const phones = getAsesorPhones();
   if (phones.length === 0) {
@@ -60,15 +62,19 @@ export async function crearAvisosRecontacto({
 
   for (const phone of phones) {
     for (const r of recontactos) {
-      // Construir línea de negocio solo si existe
+      // Construir líneas de información del cliente
       const lineaNegocio = nombreNegocio
         ? `\n🏢 Negocio: ${nombreNegocio}`
+        : "";
+      const lineaPlan = plan
+        ? `\n💼 Plan: ${plan}`
         : "";
 
       const mensaje =
         `🔔 Recontacto #${r.num} — ${nombre}\n` +
         `📱 Tel: ${telefono || "Sin teléfono"}` +
         lineaNegocio +
+        lineaPlan +
         `\n\nEste es el ${r.ordinal} recordatorio de seguimiento para este lead.`;
 
       avisos.push({

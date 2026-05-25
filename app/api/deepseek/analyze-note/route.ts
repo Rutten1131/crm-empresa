@@ -154,18 +154,13 @@ Si NO tiene fecha/hora, response: respuesta breve (máximo 30 palabras).`,
       }
 
       // Crear aviso solo si no hay conflictos
-      // Determinar el número de teléfono según el asesor
+      // NUNCA usar teléfono del cliente, siempre usar RECONTACTO_PHONES
       const recontactPhones = process.env.RECONTACTO_PHONES || "";
       const phonesArray = recontactPhones.split(",");
       const cristhopherPhone = phonesArray[0]?.trim() || "";
-      const cesarPhone = phonesArray[1]?.trim() || "";
       
-      // Usar el número del cliente si tiene, si no usar el del asesor actual
-      let telefono = cliente.telefono || "";
-      if (!telefono) {
-        // Si no hay teléfono del cliente, usar el del asesor (por defecto Cristhopher)
-        telefono = cristhopherPhone;
-      }
+      // Siempre usar el número de Cristhopher (por defecto) para avisos
+      const telefono = cristhopherPhone;
       
       const aviso = await prisma.aviso.create({
         data: {

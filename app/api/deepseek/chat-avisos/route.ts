@@ -103,17 +103,16 @@ Si NO es aviso, response: respuesta breve (máximo 30 palabras).`;
         }
 
         // Si no hay conflictos, crear el aviso
-        // Determinar el número de teléfono según el asesor
+        // NUNCA usar teléfono del cliente, siempre usar RECONTACTO_PHONES
         const recontactPhones = process.env.RECONTACTO_PHONES || "";
         const phonesArray = recontactPhones.split(",");
         const cristhopherPhone = phonesArray[0]?.trim() || "";
         const cesarPhone = phonesArray[1]?.trim() || "";
         
-        let telefono = result.telefono || "";
-        if (!telefono && asesor) {
-          if (asesor.toLowerCase().includes("cristhopher") || asesor.toLowerCase().includes("cristopher")) {
-            telefono = cristhopherPhone;
-          } else if (asesor.toLowerCase().includes("cesar")) {
+        // Siempre usar el número según el asesor, por defecto Cristhopher
+        let telefono = cristhopherPhone;
+        if (asesor) {
+          if (asesor.toLowerCase().includes("cesar")) {
             telefono = cesarPhone;
           }
         }
