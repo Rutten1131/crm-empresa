@@ -8,6 +8,18 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // We don't cache assets dynamically to prevent routing issues and ensure
-  // the client always receives the freshest code from Next.js server.
+  // Respond with the network request to prevent Chrome's "no-op fetch handler" warning.
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      // If offline and request is for page navigation, return a friendly offline message.
+      if (event.request.mode === 'navigate') {
+        return new Response("No tienes conexión a internet en este momento.", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        });
+      }
+      return new Response("", { status: 408 });
+    })
+  );
 });
+
