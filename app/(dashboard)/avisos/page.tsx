@@ -194,6 +194,11 @@ export default function AvisosPage() {
         {/* Calendario - Más grande */}
         <div className="lg:col-span-2">
           <AvisosCalendar avisos={avisos} onDateClick={handleDateClick} asesor={asesorSeleccionado} />
+          
+          {/* Chat de Avisos */}
+          <div className="mt-6">
+            <AvisosChat onAvisoCreado={fetchAvisos} asesor={asesorSeleccionado} />
+          </div>
         </div>
 
         {/* Avisos de Hoy */}
