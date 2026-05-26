@@ -119,6 +119,25 @@ export async function PATCH(
       // Si no le interesa, cerrar el cliente
       if (resultado === "NO_INTERESADO") {
         updateData.estado = EstadoCliente.CERRADO;
+
+        // Enviar WhatsApp a Cristhopher con los datos del cliente
+        try {
+          const mensajeCristhopher = `🚫 CLIENTE NO INTERESADO\n\n` +
+            `📋 Datos del cliente:\n` +
+            `• Nombre: ${clienteInfo.nombre}\n` +
+            `• Teléfono: ${clienteInfo.telefono || "N/A"}\n` +
+            `• Negocio: ${clienteInfo.nombre_negocio || "N/A"}\n` +
+            `• Plan: ${clienteInfo.plan || "N/A"}\n` +
+            `• Email: ${clienteInfo.email || "N/A"}\n` +
+            `• Fecha de ingreso: ${new Date(clienteInfo.fechaIngreso).toLocaleDateString("es-EC")}\n\n` +
+            `📝 Nota de cierre: ${nota || "Sin nota"}`;
+
+          await enviarWhatsApp("593967491847", mensajeCristhopher);
+          console.log("WhatsApp enviado a Cristhopher sobre cliente no interesado:", clienteInfo.nombre);
+        } catch (error) {
+          console.error("Error al enviar WhatsApp a Cristhopher:", error);
+          // No fallar el proceso si el WhatsApp falla
+        }
       } else if (resultado === "INTERESADO" || resultado === "VOLVER_A_PRESENTAR") {
         const pValor = valorProducto ? parseFloat(valorProducto) : 0;
         if (pValor > 0) {
