@@ -44,6 +44,7 @@ model Cliente {
   notas                  Nota[]
   pagos                  Pago[]
   seguimientos           Seguimiento[]
+  multimedia             ClienteMultimedia[]
 }
 
 model Seguimiento {
@@ -106,6 +107,21 @@ model Nota {
   cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
   @@index([clienteId], map: "Nota_clienteId_fkey")
+}
+
+model ClienteMultimedia {
+  id           String   @id @default(cuid())
+  clienteId    String
+  nombre       String
+  tipo         String   // image|video|audio|document
+  extension    String   // jpg|png|mp4|pdf|etc
+  url          String   @db.Text
+  tamaño       Int      // bytes
+  nota         String?  @db.Text
+  createdAt    DateTime @default(now())
+  cliente      Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId], map: "ClienteMultimedia_clienteId_fkey")
 }
 
 model Pago {

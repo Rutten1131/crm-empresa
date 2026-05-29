@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, ShieldAlert, MessageSquare, ExternalLink, Calendar, Users, UserPlus, AlertTriangle } from "lucide-react";
+import { Search, ShieldAlert, MessageSquare, ExternalLink, Calendar, Users, UserPlus, AlertTriangle, Upload, XCircle, Plus, Image } from "lucide-react";
 import type { Cliente, Seguimiento } from "@prisma/client";
 import { EstadoCliente, EstadoSeguimiento } from "./enums";
 import ClientePanel from "@/components/ClientePanel";
@@ -28,6 +28,8 @@ export default function ClientesPage() {
   const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [newFilesNota, setNewFilesNota] = useState("");
 
   const fetchClientes = useCallback(async () => {
     try {
@@ -80,11 +82,28 @@ export default function ClientesPage() {
         setShowDuplicateModal(true);
         setShowCreateModal(false);
       } else {
-        // Creado o reactivado con éxito
+        const createdCliente = data.cliente;
+
+        // Subir multimedia si hay archivos
+        if (newFiles.length > 0 && createdCliente?.id) {
+          for (const file of newFiles) {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("nota", newFilesNota);
+            await fetch(`/api/clientes/${createdCliente.id}/multimedia`, {
+              method: "POST",
+              body: formData,
+            });
+          }
+        }
+
+        // Limpiar formulario
         setNewNombre("");
         setNewTelefono("");
         setNewEmail("");
         setNewNombreNegocio("");
+        setNewFiles([]);
+        setNewFilesNota("");
         setDuplicateInfo(null);
         setShowCreateModal(false);
         setShowDuplicateModal(false);
@@ -93,9 +112,9 @@ export default function ClientesPage() {
         const updatedClientes = await fetchClientes();
         
         // Abrir automáticamente el panel del cliente
-        if (data.cliente) {
-          const clientInList = updatedClientes?.find((c: any) => c.id === data.cliente.id);
-          setSelectedCliente(clientInList || data.cliente);
+        if (createdCliente) {
+          const clientInList = updatedClientes?.find((c: any) => c.id === createdCliente.id);
+          setSelectedCliente(clientInList || createdCliente);
         }
       }
     } catch (err: any) {
@@ -502,6 +521,54 @@ export default function ClientesPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Multimedia */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Image size={12} />
+                  Multimedia (Opcional)
+                </label>
+                <div className="border-2 border-dashed border-zinc-800 rounded-xl p-3 text-center hover:border-zinc-700 transition-colors">
+                  <input
+                    type="file"
+                    id="file-upload-lead"
+                    multiple
+                    onChange={(e) => setNewFiles(Array.from(e.target.files || []))}
+                    className="hidden"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+                  />
+                  <label htmlFor="file-upload-lead" className="cursor-pointer flex flex-col items-center gap-1">
+                    <Plus size={18} className="text-zinc-600" />
+                    <span className="text-[10px] text-zinc-500">Click para agregar archivos</span>
+                  </label>
+                </div>
+
+                {newFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="space-y-1.5 max-h-24 overflow-y-auto">
+                      {newFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-zinc-950/80 px-3 py-1.5 rounded-lg border border-zinc-800/50">
+                          <span className="text-[10px] text-zinc-300 truncate flex-1">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-zinc-600 hover:text-red-400 ml-2"
+                          >
+                            <XCircle size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={newFilesNota}
+                      onChange={(e) => setNewFilesNota(e.target.value)}
+                      placeholder="Nota para los archivos (opcional)"
+                      className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-[10px] text-zinc-300 placeholder-zinc-600 outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Acciones */}

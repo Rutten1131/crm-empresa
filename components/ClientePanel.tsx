@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, Calendar, CheckCircle2, Clock,
   Send, ThumbsUp, ThumbsDown, RefreshCw, DollarSign,
-  MessageSquare, Presentation, FileText, CreditCard, Trash2, AlertTriangle, Brain, Bot, User
+  MessageSquare, Presentation, FileText, CreditCard, Trash2, AlertTriangle, Brain, Bot, User,
+  Image, Video, Music, File, Upload, XCircle, Download, Plus
 } from "lucide-react";
 import type { Cliente, Seguimiento } from "@prisma/client";
 import { EstadoClienteEnum, DemoReseñaEnum, MetodoPagoEnum } from "./enums";
@@ -40,6 +41,15 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
   // Historial de seguimientos/notas
   const [seguimientosList, setSeguimientosList] = useState<any[]>([]);
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
+
+  // Multimedia state
+  const [multimediaList, setMultimediaList] = useState<any[]>([]);
+  const [loadingMultimedia, setLoadingMultimedia] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [fileNota, setFileNota] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [showMultimediaModal, setShowMultimediaModal] = useState(false);
+  const [multimediaFilter, setMultimediaFilter] = useState<"all" | "image" | "video" | "audio" | "document">("all");
 
   // Delete states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -90,6 +100,22 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
     }
   };
 
+  const fetchMultimedia = async () => {
+    if (!cliente?.id) return;
+    try {
+      setLoadingMultimedia(true);
+      const res = await fetch(`/api/clientes/${cliente.id}/multimedia`);
+      if (res.ok) {
+        const data = await res.json();
+        setMultimediaList(data);
+      }
+    } catch (err) {
+      console.error("Error al cargar multimedia:", err);
+    } finally {
+      setLoadingMultimedia(false);
+    }
+  };
+
   useEffect(() => {
     // Reset states when client changes
     setResultadoPaso2(null);
@@ -108,9 +134,11 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
     if (cliente?.id) {
       fetchPagos();
       fetchSeguimientos();
+      fetchMultimedia();
     } else {
       setPagosList([]);
       setSeguimientosList([]);
+      setMultimediaList([]);
     }
   }, [cliente?.id]);
 
@@ -374,6 +402,53 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
     }
   };
 
+  const handleUploadMultimedia = async () => {
+    if (!cliente?.id || selectedFiles.length === 0) return;
+    setUploadingFile(true);
+    setFeedback(null);
+
+    try {
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("nota", fileNota);
+
+        const res = await fetch(`/api/clientes/${cliente.id}/multimedia`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || `Error al subir ${file.name}`);
+        }
+      }
+
+      setFeedback({ type: "success", msg: "✅ Archivos subidos correctamente" });
+      setSelectedFiles([]);
+      setFileNota("");
+      fetchMultimedia();
+    } catch (err: any) {
+      setFeedback({ type: "error", msg: err.message || "Error al subir archivos" });
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleDeleteMultimedia = async (multimediaId: string) => {
+    if (!cliente?.id) return;
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}/multimedia?multimediaId=${multimediaId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Error al eliminar archivo");
+      fetchMultimedia();
+      setFeedback({ type: "success", msg: "✅ Archivo eliminado" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: "Error al eliminar archivo" });
+    }
+  };
+
 
   const handleDeleteCliente = async () => {
     if (!cliente?.id) return;
@@ -576,6 +651,72 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
                   })}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* ══════ Multimedia ══════ */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Multimedia del Cliente</h3>
+              <button
+                onClick={() => setShowMultimediaModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-blue-500/20 transition-colors cursor-pointer"
+              >
+                <Image size={12} />
+                Ver Multimedia ({multimediaList.length})
+              </button>
+            </div>
+            
+            {/* Quick Upload Area */}
+            <div className="bg-zinc-950 border border-zinc-850 rounded-2xl p-4">
+              <div className="border-2 border-dashed border-zinc-800 rounded-xl p-3 text-center hover:border-zinc-700 transition-colors">
+                <input
+                  type="file"
+                  id="file-upload"
+                  multiple
+                  onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+                  className="hidden"
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+                />
+                <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-1">
+                  <Plus size={18} className="text-zinc-600" />
+                  <span className="text-[10px] text-zinc-500">Agregar archivos</span>
+                </label>
+              </div>
+
+              {selectedFiles.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <span className="text-[10px] text-zinc-500 font-semibold">{selectedFiles.length} archivo(s) seleccionado(s)</span>
+                  <div className="space-y-1 max-h-24 overflow-y-auto">
+                    {selectedFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-zinc-900/60 px-3 py-1.5 rounded-lg border border-zinc-850/50">
+                        <span className="text-[10px] text-zinc-300 truncate flex-1">{file.name}</span>
+                        <button
+                          onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-zinc-600 hover:text-red-400 ml-2"
+                        >
+                          <XCircle size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={fileNota}
+                    onChange={(e) => setFileNota(e.target.value)}
+                    placeholder="Nota para los archivos (opcional)"
+                    className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] text-zinc-300 placeholder-zinc-600 outline-none"
+                  />
+                  <button
+                    onClick={handleUploadMultimedia}
+                    disabled={uploadingFile || selectedFiles.length === 0}
+                    className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <Upload size={12} />
+                    {uploadingFile ? "Subiendo..." : `Subir ${selectedFiles.length} archivo(s)`}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
