@@ -1556,6 +1556,225 @@ export default function ClientePanel({ cliente, onClose, onStatusChangeSuccess, 
         </div>
       </div>
 
+      {/* ── Modal de Multimedia ── */}
+      {showMultimediaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-sm" onClick={() => setShowMultimediaModal(false)} />
+          <div className="relative z-10 bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl mx-4 shadow-2xl animate-fade-in flex flex-col" style={{ maxHeight: "85vh" }}>
+            {/* Header */}
+            <div className="p-5 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-zinc-100">Multimedia del Cliente</h3>
+                <p className="text-[10px] text-zinc-500">{multimediaList.length} archivo(s) almacenados</p>
+              </div>
+              <button
+                onClick={() => setShowMultimediaModal(false)}
+                className="text-zinc-500 hover:text-zinc-300 p-2 rounded-xl hover:bg-zinc-800/40 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="px-5 pt-4 pb-2 flex-shrink-0">
+              <div className="flex bg-zinc-950 border border-zinc-850 rounded-xl p-1 gap-1">
+                {([
+                  { value: "all" as const, label: "Todos", icon: File, count: multimediaList.length },
+                  { value: "image" as const, label: "Imágenes", icon: Image, count: multimediaList.filter(m => m.tipo === "image").length },
+                  { value: "video" as const, label: "Videos", icon: Video, count: multimediaList.filter(m => m.tipo === "video").length },
+                  { value: "audio" as const, label: "Audios", icon: Music, count: multimediaList.filter(m => m.tipo === "audio").length },
+                  { value: "document" as const, label: "Docs", icon: FileText, count: multimediaList.filter(m => m.tipo === "document").length },
+                ]).map((tab) => {
+                  const TabIcon = tab.icon;
+                  return (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => setMultimediaFilter(tab.value)}
+                      className={`flex-1 py-2 px-2 text-[10px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        multimediaFilter === tab.value
+                          ? "bg-zinc-900 text-zinc-150 border border-zinc-800 shadow"
+                          : "text-zinc-500 hover:text-zinc-350"
+                      }`}
+                    >
+                      <TabIcon size={12} />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                      {tab.count > 0 && (
+                        <span className={`ml-0.5 text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                          multimediaFilter === tab.value
+                            ? "bg-blue-500/20 text-blue-400"
+                            : "bg-zinc-800 text-zinc-500"
+                        }`}>
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {loadingMultimedia ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw size={20} className="animate-spin text-zinc-500" />
+                  <span className="ml-2 text-sm text-zinc-500">Cargando archivos...</span>
+                </div>
+              ) : (() => {
+                const filtered = multimediaFilter === "all"
+                  ? multimediaList
+                  : multimediaList.filter(m => m.tipo === multimediaFilter);
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="w-14 h-14 rounded-full bg-zinc-800/50 border border-zinc-800 flex items-center justify-center mb-3">
+                        {multimediaFilter === "image" ? <Image size={22} className="text-zinc-600" /> :
+                         multimediaFilter === "video" ? <Video size={22} className="text-zinc-600" /> :
+                         multimediaFilter === "audio" ? <Music size={22} className="text-zinc-600" /> :
+                         multimediaFilter === "document" ? <FileText size={22} className="text-zinc-600" /> :
+                         <File size={22} className="text-zinc-600" />}
+                      </div>
+                      <p className="text-sm text-zinc-500 font-semibold">No hay archivos</p>
+                      <p className="text-[10px] text-zinc-600 mt-1">
+                        {multimediaFilter === "all"
+                          ? "Aún no se han subido archivos para este cliente."
+                          : `No hay ${multimediaFilter === "image" ? "imágenes" : multimediaFilter === "video" ? "videos" : multimediaFilter === "audio" ? "audios" : "documentos"} subidos.`}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {filtered.map((item) => {
+                      const isImage = item.tipo === "image";
+                      const isVideo = item.tipo === "video";
+                      const isAudio = item.tipo === "audio";
+                      const sizeKB = item.tamaño ? (item.tamaño / 1024).toFixed(1) : "?";
+                      const sizeMB = item.tamaño ? (item.tamaño / (1024 * 1024)).toFixed(2) : null;
+                      const sizeLabel = sizeMB && parseFloat(sizeMB) >= 1 ? `${sizeMB} MB` : `${sizeKB} KB`;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="bg-zinc-950 border border-zinc-850 rounded-xl overflow-hidden hover:border-zinc-700 transition-all group"
+                        >
+                          {/* Preview Area */}
+                          {isImage ? (
+                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="block">
+                              <div className="relative w-full h-32 bg-zinc-900 overflow-hidden">
+                                <img
+                                  src={item.url}
+                                  alt={item.nombre}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </a>
+                          ) : isVideo ? (
+                            <div className="relative w-full h-32 bg-zinc-900 overflow-hidden">
+                              <video
+                                src={item.url}
+                                className="w-full h-full object-cover"
+                                muted
+                                preload="metadata"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/40">
+                                <a href={item.url} target="_blank" rel="noopener noreferrer"
+                                  className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-700 flex items-center justify-center hover:bg-zinc-800 transition-colors">
+                                  <Video size={18} className="text-blue-400" />
+                                </a>
+                              </div>
+                            </div>
+                          ) : isAudio ? (
+                            <div className="px-3 pt-3">
+                              <audio controls className="w-full h-8" preload="metadata" style={{ filter: "invert(0.85)" }}>
+                                <source src={item.url} />
+                              </audio>
+                            </div>
+                          ) : (
+                            <div className="w-full h-20 bg-zinc-900 flex items-center justify-center">
+                              <FileText size={28} className="text-zinc-600" />
+                            </div>
+                          )}
+
+                          {/* Info */}
+                          <div className="p-3 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-zinc-300 font-semibold truncate" title={item.nombre}>
+                                  {item.nombre}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                    item.tipo === "image" ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" :
+                                    item.tipo === "video" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
+                                    item.tipo === "audio" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+                                    "bg-zinc-700/40 text-zinc-400 border border-zinc-700/60"
+                                  }`}>
+                                    {item.tipo === "image" ? <Image size={9} /> :
+                                     item.tipo === "video" ? <Video size={9} /> :
+                                     item.tipo === "audio" ? <Music size={9} /> :
+                                     <FileText size={9} />}
+                                    {item.extension}
+                                  </span>
+                                  <span className="text-[9px] text-zinc-600">{sizeLabel}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {item.nota && (
+                              <p className="text-[10px] text-zinc-500 italic border-t border-zinc-850/50 pt-1.5">
+                                📝 {item.nota}
+                              </p>
+                            )}
+
+                            {item.createdAt && (
+                              <p className="text-[9px] text-zinc-600">
+                                {new Date(item.createdAt).toLocaleDateString("es-EC", {
+                                  timeZone: "America/Guayaquil",
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                })}
+                              </p>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-2 pt-1">
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold rounded-lg border border-blue-500/20 transition-colors"
+                              >
+                                <Download size={10} />
+                                Abrir
+                              </a>
+                              <button
+                                onClick={() => handleDeleteMultimedia(item.id)}
+                                className="flex items-center justify-center gap-1 py-1.5 px-3 bg-red-600/10 hover:bg-red-600/20 text-red-400 text-[10px] font-bold rounded-lg border border-red-500/20 transition-colors cursor-pointer"
+                              >
+                                <Trash2 size={10} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal de Confirmación: Eliminar Cliente ── */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
