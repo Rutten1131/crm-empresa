@@ -48,10 +48,19 @@ async function sincronizarClientes() {
       }
 
       if (clienteExistente) {
+        // Asegurar que tenga tipoCliente = ACTIVAQ
+        const updateData: any = {};
         if (clientPlan && !clienteExistente.plan) {
+          updateData.plan = clientPlan;
+        }
+        if (!clienteExistente.tipoCliente) {
+          updateData.tipoCliente = "ACTIVAQ";
+        }
+        
+        if (Object.keys(updateData).length > 0) {
           await prisma.cliente.update({
             where: { id: clienteExistente.id },
-            data: { plan: clientPlan as any },
+            data: updateData,
           });
         }
         actualizados++;
@@ -66,6 +75,7 @@ async function sincronizarClientes() {
             // Guardamos la fecha original si viene, sino la de hoy
             fechaIngreso: c.fecha_registro ? new Date(c.fecha_registro) : new Date(),
             plan: clientPlan as any,
+            tipoCliente: "ACTIVAQ", // Marcar que viene de ActivaQR
           },
         });
 
@@ -88,6 +98,39 @@ async function sincronizarClientes() {
     }
 
     console.log(`Sincronización completada: ${nuevos} clientes nuevos, ${actualizados} ya existían.`);
+
+    // ─────────────────────────────────────────────────────────
+    // Eliminar clientes que ya no existen en ActivaQR
+    // ─────────────────────────────────────────────────────────
+    console.log("\nVerificando clientes eliminados en ActivaQR...");
+    
+    // Obtener todos los teléfonos de ActivaQR
+    const telefonosActivaQR = new Set(
+      clientesApi
+        .map((c: any) => c.whatsapp ? c.whatsapp.replace(/[^\d+]/g, "") : null)
+        .filter((t: string | null) => t !== null)
+    );
+    
+    // Obtener clientes del CRM que vienen de ActivaQR (tipoCliente = ACTIVAQ)
+    const clientesCRM = await prisma.cliente.findMany({
+      where: { tipoCliente: "ACTIVAQ" },
+      select: { id: true, telefono: true, nombre: true },
+    });
+    
+    let eliminados = 0;
+    for (const cliente of clientesCRM) {
+      if (!telefonosActivaQR.has(cliente.telefono)) {
+        // El cliente ya no existe en ActivaQR, eliminar del CRM
+        await prisma.cliente.delete({
+          where: { id: cliente.id },
+        });
+        console.log(`🗑️ Eliminado: ${cliente.nombre} (${cliente.telefono})`);
+        eliminados++;
+      }
+    }
+    
+    console.log(`Eliminación completada: ${eliminados} clientes eliminados.`);
+
   } catch (error) {
     console.error("Error sincronizando:", error);
   } finally {

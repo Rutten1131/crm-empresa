@@ -115,6 +115,9 @@ export async function GET(request: NextRequest) {
         },
         estado: "PENDIENTE",
       },
+      include: {
+        cliente: true, // Incluir datos del cliente para verificar estado
+      },
       orderBy: {
         fechaProg: "asc",
       },
@@ -124,6 +127,25 @@ export async function GET(request: NextRequest) {
     
     // Procesar cada aviso para enviar recordatorios
     for (const aviso of avisos) {
+      // SKIP: Si el aviso tiene cliente asociado, verificar si está CERRADO o PAGADO
+      if (aviso.clienteId && aviso.cliente) {
+        const estado = aviso.cliente.estado;
+        if (estado === "CERRADO" || estado === "PAGADO") {
+          // Marcar aviso como fallido porque el cliente ya no está activo
+          await prisma.aviso.update({
+            where: { id: aviso.id },
+            data: { estado: "FALLIDO" },
+          });
+          resultados.push({ 
+            avisoId: aviso.id, 
+            tipo: "skip", 
+            enviado: false, 
+            motivo: `Cliente ${estado}` 
+          });
+          continue;
+        }
+      }
+
       const tiempoRestanteMs = aviso.fechaProg.getTime() - ecuadorTime.getTime();
       const tiempoRestanteMin = Math.floor(tiempoRestanteMs / (1000 * 60));
       
