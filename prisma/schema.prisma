@@ -45,6 +45,10 @@ model Cliente {
   pagos                  Pago[]
   seguimientos           Seguimiento[]
   multimedia             ClienteMultimedia[]
+
+  @@index([telefono])
+  @@index([estado])
+  @@index([fechaIngreso])
 }
 
 model Seguimiento {
@@ -59,6 +63,8 @@ model Seguimiento {
   cliente    Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
   @@index([clienteId], map: "Seguimiento_clienteId_fkey")
+  @@index([estado, fechaProg])
+  @@index([fechaProg])
 }
 
 model Transaccion {
@@ -70,6 +76,9 @@ model Transaccion {
   fecha       DateTime        @default(now())
   creadoPor   String
   createdAt   DateTime        @default(now())
+
+  @@index([fecha])
+  @@index([tipo])
 }
 
 model Aviso {
@@ -88,6 +97,10 @@ model Aviso {
   cliente                  Cliente?    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
   @@index([clienteId], map: "Aviso_clienteId_fkey")
+  @@index([estado, fechaProg])
+  @@index([fechaProg])
+  @@index([telefono])
+  @@index([creadoPor])
 }
 
 model Configuracion {

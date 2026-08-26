@@ -25,31 +25,46 @@ export async function GET() {
 
     const clientesActivaQR = await conn.query("SELECT * FROM registraya_vcard_registros");
 
+    // Cargar todos los teléfonos existentes en un solo query para evitar N+1 queries
+    const existingClientes = await prisma.cliente.findMany({
+      select: {
+        id: true,
+        telefono: true,
+        plan: true,
+      },
+    });
+
+    const clienteMap = new Map<string, { id: string; plan: string | null }>();
+    for (const ec of existingClientes) {
+      if (ec.telefono) {
+        clienteMap.set(ec.telefono, ec);
+      }
+    }
+
     for (const c of clientesActivaQR) {
       const telefonoOriginal = c.whatsapp || c.telefono || "";
       const telefonoNormalizado = telefonoOriginal.replace(/[^\d+]/g, "");
       
       if (!telefonoNormalizado) continue;
 
-      const clienteExistente = await prisma.cliente.findFirst({
-        where: { telefono: telefonoNormalizado },
-      });
+      const clienteExistente = clienteMap.get(telefonoNormalizado);
 
-      let clientPlan = null;
+      let clientPlan: "BASIC" | "BUSINESS" | "CATALOG" | null = null;
       if (c.plan) {
-        const pUpper = c.plan.toUpperCase();
+        const pUpper = String(c.plan).toUpperCase();
         if (pUpper === "BASIC") clientPlan = "BASIC";
         else if (pUpper === "BUSINESS") clientPlan = "BUSINESS";
         else if (pUpper === "CATALOG") clientPlan = "CATALOG";
       }
 
       if (clienteExistente) {
-        // Siempre actualizar el plan cuando ActivaQR proporciona uno válido
-        if (clientPlan) {
+        // Solo actualizar si el plan cambió para no hacer queries innecesarias
+        if (clientPlan && clientPlan !== clienteExistente.plan) {
           await prisma.cliente.update({
             where: { id: clienteExistente.id },
             data: { plan: clientPlan as any },
           });
+          clienteExistente.plan = clientPlan;
         }
         actualizados++;
       } else {
@@ -63,6 +78,9 @@ export async function GET() {
             plan: clientPlan as any,
           },
         });
+
+        // Registrar en el mapa para evitar duplicados si la consulta externa tiene repetidos
+        clienteMap.set(telefonoNormalizado, { id: nuevoCliente.id, plan: clientPlan });
 
         // Generar seguimientos (días 3, 7 y 15)
         const hoy = new Date();

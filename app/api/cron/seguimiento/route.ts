@@ -44,6 +44,13 @@ async function handleCron(request: NextRequest) {
     let omitidosCount = 0;
     let fallidosCount = 0;
 
+    // Pre-cargar configuraciones una sola vez fuera del bucle
+    const todasConfig = await prisma.configuracion.findMany();
+    const configMap = new Map<string, string>();
+    for (const c of todasConfig) {
+      configMap.set(c.key, c.value);
+    }
+
     for (const seg of seguimientosPendientes) {
       const { cliente, dia } = seg;
 
@@ -57,14 +64,8 @@ async function handleCron(request: NextRequest) {
       }
 
       const configKey = `msg_dia_${dia}`;
-      const configuracion = await prisma.configuracion.findUnique({
-        where: { key: configKey },
-      });
-
-      let plantilla = "";
-      if (configuracion) {
-        plantilla = configuracion.value;
-      } else {
+      let plantilla = configMap.get(configKey) || "";
+      if (!plantilla) {
         if (dia === 3) {
           plantilla = "Hola {nombre}, te escribimos desde AntiGravity. Notamos que aún tienes tu cuenta de prueba activa. ¿Tienes alguna duda que podamos resolver?";
         } else if (dia === 7) {

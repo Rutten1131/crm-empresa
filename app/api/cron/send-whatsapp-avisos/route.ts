@@ -41,7 +41,8 @@ export async function GET(request: NextRequest) {
           nombre: {
             in: ["Cesar", "Cristhopher"]
           }
-        }
+        },
+        select: { nombre: true, telefono: true }
       });
       
       const cesarUser = users.find(u => u.nombre?.toLowerCase() === "cesar");
@@ -50,73 +51,84 @@ export async function GET(request: NextRequest) {
       if (cesarUser?.telefono) cesarPhone = cesarUser.telefono;
       if (cristhopherUser?.telefono) cristhopherPhone = cristhopherUser.telefono;
 
-      // Asegurar avisos para los próximos 14 días
+      const destinatarios = [
+        { nombre: "Cesar", telefono: cesarPhone },
+        { nombre: "Cristhopher", telefono: cristhopherPhone }
+      ];
+
+      // Pre-calcular fechas de los próximos 14 días que sean Martes (2) o Sábado (6)
+      const targetDates: Date[] = [];
       for (let i = 0; i <= 14; i++) {
         const futureDate = new Date(ecuadorTime.getTime());
         futureDate.setDate(futureDate.getDate() + i);
-        
-        const dayOfWeek = futureDate.getDay(); // 0 = Domingo, 1 = Lunes, 2 = Martes, ..., 6 = Sábado
-        
+        const dayOfWeek = futureDate.getDay();
         if (dayOfWeek === 2 || dayOfWeek === 6) {
           const fYear = futureDate.getFullYear();
           const fMonth = String(futureDate.getMonth() + 1).padStart(2, '0');
           const fDay = String(futureDate.getDate()).padStart(2, '0');
-          
-          const targetEcuadorDate = new Date(`${fYear}-${fMonth}-${fDay}T08:00:00.000-05:00`);
-          
-          const destinatarios = [
-            { nombre: "Cesar", telefono: cesarPhone },
-            { nombre: "Cristhopher", telefono: cristhopherPhone }
-          ];
-          
+          targetDates.push(new Date(`${fYear}-${fMonth}-${fDay}T08:00:00.000-05:00`));
+        }
+      }
+
+      if (targetDates.length > 0) {
+        // Consultar una SOLA vez todos los avisos existentes en esas fechas
+        const existingAvisos = await prisma.aviso.findMany({
+          where: {
+            titulo: 'Recordatorio: Publicar Venta de Finca "Aroma de Montaña"',
+            fechaProg: { in: targetDates },
+          },
+          select: { telefono: true, fechaProg: true },
+        });
+
+        const existingSet = new Set(
+          existingAvisos.map(a => `${a.telefono}_${a.fechaProg.getTime()}`)
+        );
+
+        const newAvisosToCreate = [];
+        for (const targetDate of targetDates) {
           for (const dest of destinatarios) {
-            const exists = await prisma.aviso.findFirst({
-              where: {
+            const key = `${dest.telefono}_${targetDate.getTime()}`;
+            if (!existingSet.has(key)) {
+              newAvisosToCreate.push({
+                titulo: 'Recordatorio: Publicar Venta de Finca "Aroma de Montaña"',
+                mensaje: 'Recordatorio: Publicar Venta de Finca "Aroma de Montaña"',
                 telefono: dest.telefono,
-                fechaProg: targetEcuadorDate,
-                titulo: "Recordatorio: Publicar Venta de Finca \"Aroma de Montaña\""
-              }
-            });
-            
-            if (!exists) {
-              await prisma.aviso.create({
-                data: {
-                  titulo: "Recordatorio: Publicar Venta de Finca \"Aroma de Montaña\"",
-                  mensaje: "Recordatorio: Publicar Venta de Finca \"Aroma de Montaña\"",
-                  telefono: dest.telefono,
-                  fechaProg: targetEcuadorDate,
-                  estado: "PENDIENTE",
-                  creadoPor: "system",
-                  recordatorio1hEnviado: true,
-                  recordatorio30minEnviado: true,
-                  recordatorio10minEnviado: true
-                }
+                fechaProg: targetDate,
+                estado: "PENDIENTE" as const,
+                creadoPor: "system",
+                recordatorio1hEnviado: true,
+                recordatorio30minEnviado: true,
+                recordatorio10minEnviado: true,
               });
-              console.log(`Aviso recurrente creado para ${dest.nombre} el ${targetEcuadorDate.toISOString()}`);
+              existingSet.add(key);
             }
           }
+        }
+
+        if (newAvisosToCreate.length > 0) {
+          await prisma.aviso.createMany({ data: newAvisosToCreate });
         }
       }
     } catch (err) {
       console.error("Error al pre-generar avisos recurrentes:", err);
     }
     
-    
-    // Obtener avisos pendientes para hoy y próximos 7 días (UTC-5)
-    const startOfDay = new Date(`${year}-${mm}-${dd}T00:00:00.000-05:00`);
-    const endOfPeriod = new Date(`${year}-${mm}-${dd}T23:59:59.999-05:00`);
-    endOfPeriod.setDate(endOfPeriod.getDate() + 7);
+    // Obtener SOLO avisos pendientes en la ventana activa (desde hace 65 min hasta próximos 70 min)
+    const startWindow = new Date(ecuadorTime.getTime() - 65 * 60 * 1000);
+    const endWindow = new Date(ecuadorTime.getTime() + 70 * 60 * 1000);
     
     const avisos = await prisma.aviso.findMany({
       where: {
         fechaProg: {
-          gte: startOfDay,
-          lte: endOfPeriod,
+          gte: startWindow,
+          lte: endWindow,
         },
         estado: "PENDIENTE",
       },
       include: {
-        cliente: true, // Incluir datos del cliente para verificar estado
+        cliente: {
+          select: { id: true, estado: true }
+        },
       },
       orderBy: {
         fechaProg: "asc",
